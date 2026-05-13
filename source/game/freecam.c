@@ -10,12 +10,16 @@
 #include "linkvar.h"
 #include <stddef.h>
 
-/* Over-the-shoulder placement (active while Snake is aiming a weapon). */
-#define OTS_YAW_FLIP          0x800   /* 180 deg, put camera behind Snake (not in front) */
-#define OTS_SHOULDER_OFFSET   0x180   /* ~67.5 deg shoulder displacement */
-#define OTS_PITCH             0x0100  /* steeper tilt, eye sits higher */
-#define OTS_DISTANCE          1000    /* further from Snake for breathing room */
-#define OTS_CENTER_VY        (-350)   /* look-at point near Snake's head */
+/* Over-the-shoulder placement (active while Snake is aiming a weapon).
+ * The OTS path is a direct translation in world space, not a spherical orbit:
+ *   eye    = Snake + right * SHOULDER_DIST + up * EYE_HEIGHT - forward * BEHIND_DIST
+ *   center = Snake + forward * LOOK_FORWARD + up * LOOK_HEIGHT
+ * Look-at sits far ahead so the camera looks where Snake aims, not at Snake. */
+#define OTS_SHOULDER_DIST   500    /* lateral world units to Snake's right */
+#define OTS_BEHIND_DIST     400    /* world units behind Snake's facing */
+#define OTS_EYE_HEIGHT      500    /* eye above feet (PSX -Y is up) */
+#define OTS_LOOK_FORWARD    8000   /* far-ahead target along Snake's facing */
+#define OTS_LOOK_HEIGHT     500    /* aim point above feet */
 
 extern UnkCameraStruct2 gUnkCameraStruct2_800B7868;
 extern short            area_name;
@@ -53,49 +57,62 @@ void FreeCam_Tick(void)
     const FreeCamRoomConfig *room = g_current_room;
     GV_PAD *pad;
     int     ots_active;
-    int     local_distance;
-    int     local_pitch;
-    int     local_center_vy;
     SVECTOR eye;
     SVECTOR center;
-    int     cos_p, sin_p, cos_y, sin_y;
-    int     horiz;
 
     if (room == NULL) { return; }
 
     pad = &GV_PadData[0];
     /* "Shoot mode" = Square held with a weapon equipped. Mirrors sna_8005009C's
-     * aim/fire branch in sna_init.c so the camera engages exactly when Snake's
+     * aim branch in sna_init.c so the camera engages exactly when Snake's
      * weapon animation does. */
     ots_active = ((pad->status & PAD_SQUARE) != 0) && (GM_CurrentWeaponId != WP_None);
 
     if (ots_active)
     {
-        g_yaw           = (short)((GM_PlayerHeading + OTS_YAW_FLIP + OTS_SHOULDER_OFFSET) & 0x0FFF);
-        local_pitch     = OTS_PITCH;
-        local_distance  = OTS_DISTANCE;
-        local_center_vy = OTS_CENTER_VY;
+        int sin_h = rsin(GM_PlayerHeading);
+        int cos_h = rcos(GM_PlayerHeading);
+
+        /* Eye: lateral right + slight behind, raised. */
+        eye.vx = GM_PlayerPosition.vx
+               + (short)((cos_h * OTS_SHOULDER_DIST) >> 12)
+               - (short)((sin_h * OTS_BEHIND_DIST)   >> 12);
+        eye.vz = GM_PlayerPosition.vz
+               - (short)((sin_h * OTS_SHOULDER_DIST) >> 12)
+               - (short)((cos_h * OTS_BEHIND_DIST)   >> 12);
+        eye.vy = GM_PlayerPosition.vy - OTS_EYE_HEIGHT;
+        eye.pad = 0;
+
+        /* Look-at: far ahead of Snake along his facing. */
+        center.vx = GM_PlayerPosition.vx + (short)((sin_h * OTS_LOOK_FORWARD) >> 12);
+        center.vz = GM_PlayerPosition.vz + (short)((cos_h * OTS_LOOK_FORWARD) >> 12);
+        center.vy = GM_PlayerPosition.vy - OTS_LOOK_HEIGHT;
+        center.pad = 0;
     }
     else
     {
+        int cos_p, sin_p, cos_y, sin_y;
+        int horiz;
+
         /* Auto-rotate orbit: ~one revolution per ~8.5s @ 60fps. */
-        g_yaw           = (short)((g_yaw + 8) & 0x0FFF);
-        local_pitch     = g_pitch;
-        local_distance  = g_distance;
-        local_center_vy = -200;
+        g_yaw = (short)((g_yaw + 8) & 0x0FFF);
+
+        cos_y = rcos(g_yaw);
+        sin_y = rsin(g_yaw);
+        cos_p = rcos(g_pitch);
+        sin_p = rsin(g_pitch);
+
+        horiz = (g_distance * cos_p) >> 12;
+
+        eye.vx = GM_PlayerPosition.vx + (short)((horiz * sin_y) >> 12);
+        eye.vz = GM_PlayerPosition.vz + (short)((horiz * cos_y) >> 12);
+        eye.vy = GM_PlayerPosition.vy - (short)((g_distance * sin_p) >> 12);
+        eye.pad = 0;
+
+        center = GM_PlayerPosition;
+        center.vy -= 200;
+        center.pad = 0;
     }
-
-    cos_y = rcos(g_yaw);
-    sin_y = rsin(g_yaw);
-    cos_p = rcos(local_pitch);
-    sin_p = rsin(local_pitch);
-
-    horiz = (local_distance * cos_p) >> 12;
-
-    eye.vx = GM_PlayerPosition.vx + (short)((horiz * sin_y) >> 12);
-    eye.vz = GM_PlayerPosition.vz + (short)((horiz * cos_y) >> 12);
-    eye.vy = GM_PlayerPosition.vy - (short)((local_distance * sin_p) >> 12);
-    eye.pad = 0;
 
     if (eye.vx < room->bounds_min.vx) { eye.vx = room->bounds_min.vx; }
     if (eye.vx > room->bounds_max.vx) { eye.vx = room->bounds_max.vx; }
@@ -103,10 +120,6 @@ void FreeCam_Tick(void)
     if (eye.vy > room->bounds_max.vy) { eye.vy = room->bounds_max.vy; }
     if (eye.vz < room->bounds_min.vz) { eye.vz = room->bounds_min.vz; }
     if (eye.vz > room->bounds_max.vz) { eye.vz = room->bounds_max.vz; }
-
-    center = GM_PlayerPosition;
-    center.vy += local_center_vy;
-    center.pad = 0;
 
     gUnkCameraStruct2_800B7868.eye    = eye;
     gUnkCameraStruct2_800B7868.center = center;
