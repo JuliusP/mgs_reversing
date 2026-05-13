@@ -23,6 +23,15 @@
 #define OTS_LOOK_FORWARD    8000   /* far-ahead target along Snake's facing */
 #define OTS_LOOK_HEIGHT     700    /* aim point above Snake, matches eye for level look */
 
+/* OTS free-look tuning. Shifts match the orbit cam's live values so feel is
+ * consistent between modes. Pitch limit ~22° each way; eye/center offsets
+ * scale g_ots_pitch into world units via >> 4 in the read sites. */
+#define OTS_YAW_SHIFT     1
+#define OTS_PITCH_SHIFT   2
+#define OTS_PITCH_LIMIT   0x100
+#define OTS_PITCH_EYE_K   3
+#define OTS_PITCH_LOOK_K  8
+
 extern UnkCameraStruct2 gUnkCameraStruct2_800B7868;
 extern short            area_name;
 
@@ -31,17 +40,31 @@ static short g_yaw      = 0;
 static short g_pitch    = 0x0200;
 static int   g_distance = 3200;
 
+/* OTS free-look state. g_ots_active is the "this frame" flag consumed by
+ * FreeCam_GetAimOverride; the previous frame's value is captured into a
+ * local at the head of FreeCam_Tick for edge detection. */
+static short g_ots_yaw_delta    = 0;
+static short g_ots_pitch        = 0;
+static short g_ots_base_heading = 0;
+static char  g_ots_active       = 0;
+
 void FreeCam_Init(void)
 {
     g_current_room = NULL;
     g_yaw      = 0;
     g_pitch    = 0x0200;
     g_distance = 3200;
+
+    g_ots_yaw_delta    = 0;
+    g_ots_pitch        = 0;
+    g_ots_base_heading = 0;
+    g_ots_active       = 0;
 }
 
 void FreeCam_OnStageChange(void)
 {
     g_current_room = FreeCam_LookupRoom((int)area_name);
+    g_ots_active   = 0;
 }
 
 int FreeCam_IsActive(void)
@@ -66,10 +89,47 @@ void FreeCam_Tick(void)
     if (room == NULL) { return; }
 
     pad = &GV_PadData[0];
-    /* "Shoot mode" = Square held with a weapon equipped. Mirrors sna_8005009C's
-     * aim branch in sna_init.c so the camera engages exactly when Snake's
-     * weapon animation does. */
-    ots_active = ((pad->status & PAD_SQUARE) != 0) && (GM_CurrentWeaponId != WP_None);
+    {
+        int was_active;
+        /* "Shoot mode" = Square held with a weapon equipped. Mirrors sna_8005009C's
+         * aim branch in sna_init.c so the camera engages exactly when Snake's
+         * weapon animation does. */
+        was_active = (int)g_ots_active;
+        ots_active = ((pad->status & PAD_SQUARE) != 0) && (GM_CurrentWeaponId != WP_None);
+        g_ots_active = (char)ots_active;
+
+        /* Rising edge: capture Snake's heading as the base; zero integrators
+         * so the first frame of aim sits exactly at the captured heading. */
+        if (!was_active && ots_active)
+        {
+            g_ots_base_heading = GM_PlayerHeading;
+            g_ots_yaw_delta    = 0;
+            g_ots_pitch        = 0;
+        }
+
+        /* Falling edge: orbit cam returns already behind Snake's new facing.
+         * +2048 matches the engine pad-dir convention used in the orbit branch. */
+        if (was_active && !ots_active)
+        {
+            g_yaw = (short)((GM_PlayerHeading + 2048) & 0x0FFF);
+        }
+
+        /* Integrate right stick into yaw/pitch deltas while OTS is active.
+         * Pitch is clamped here; Phase 4's eye/center reads use g_ots_pitch
+         * directly. */
+        if (ots_active)
+        {
+            int rx = (int)pad->right_dx - 0x80;
+            int ry = (int)pad->right_dy - 0x80;
+            if (rx > -8 && rx < 8) { rx = 0; }
+            if (ry > -8 && ry < 8) { ry = 0; }
+
+            g_ots_yaw_delta = (short)(g_ots_yaw_delta + (rx >> OTS_YAW_SHIFT));
+            g_ots_pitch     = (short)(g_ots_pitch     + (ry >> OTS_PITCH_SHIFT));
+            if (g_ots_pitch < -OTS_PITCH_LIMIT) { g_ots_pitch = -OTS_PITCH_LIMIT; }
+            if (g_ots_pitch >  OTS_PITCH_LIMIT) { g_ots_pitch =  OTS_PITCH_LIMIT; }
+        }
+    }
 
     if (ots_active)
     {
@@ -83,13 +143,15 @@ void FreeCam_Tick(void)
         eye.vz = GM_PlayerPosition.vz
                - (short)((sin_h * OTS_SHOULDER_DIST) >> 12)
                - (short)((cos_h * OTS_BEHIND_DIST)   >> 12);
-        eye.vy = GM_PlayerPosition.vy + OTS_EYE_HEIGHT;
+        eye.vy = GM_PlayerPosition.vy + OTS_EYE_HEIGHT
+               + (short)((g_ots_pitch * OTS_PITCH_EYE_K) >> 4);
         eye.pad = 0;
 
         /* Look-at: far ahead of Snake along his facing. */
         center.vx = GM_PlayerPosition.vx + (short)((sin_h * OTS_LOOK_FORWARD) >> 12);
         center.vz = GM_PlayerPosition.vz + (short)((cos_h * OTS_LOOK_FORWARD) >> 12);
-        center.vy = GM_PlayerPosition.vy + OTS_LOOK_HEIGHT;
+        center.vy = GM_PlayerPosition.vy + OTS_LOOK_HEIGHT
+                  - (short)((g_ots_pitch * OTS_PITCH_LOOK_K) >> 4);
         center.pad = 0;
 
         /* Eye is behind Snake along his heading; cam-forward = heading.
@@ -151,4 +213,11 @@ void FreeCam_Tick(void)
     gUnkCameraStruct2_800B7868.zoom   = 320;
 
     GV_OriginPadSystem(pad_origin);
+}
+
+int FreeCam_GetAimOverride(short *out_heading)
+{
+    if (!g_ots_active) { return 0; }
+    *out_heading = (short)((g_ots_base_heading + g_ots_yaw_delta) & 0x0FFF);
+    return 1;
 }

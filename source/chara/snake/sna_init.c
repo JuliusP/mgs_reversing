@@ -12,6 +12,7 @@
 #include "libdg/libdg.h"
 #include "libgcl/libgcl.h"
 #include "game/game.h"
+#include "game/freecam.h"
 #include "linkvar.h"
 #include "okajima/blood.h"
 #include "bullet/bakudan.h"
@@ -5689,10 +5690,22 @@ void sna_anim_shoot_weapon_helper_80057590(SnaInitWork *work, int time)
         return;
     }
 
-    if (gSnaMoveDir_800ABBA4 < 0)
     {
-        SetAction_8004E22C(work, work->actpack->still->setup, 4);
-        return;
+        short ots_heading;
+        if (FreeCam_GetAimOverride(&ots_heading))
+        {
+            work->control.turn.vy = ots_heading;
+            if (gSnaMoveDir_800ABBA4 < 0)
+            {
+                SetAction_8004E22C(work, work->actpack->still->setup, 4);
+                return;
+            }
+        }
+        else if (gSnaMoveDir_800ABBA4 < 0)
+        {
+            SetAction_8004E22C(work, work->actpack->still->setup, 4);
+            return;
+        }
     }
 
     status = work->field_9B0_pad_ptr->status;
@@ -5724,7 +5737,13 @@ void sna_anim_shoot_weapon_helper_80057590(SnaInitWork *work, int time)
                     sna_start_anim_8004E1F4(work, &sna_anim_rungun_begin_80056BDC);
                 }
 
-                work->control.turn.vy = gSnaMoveDir_800ABBA4;
+                {
+                    short ots_heading_rungun;
+                    if (!FreeCam_GetAimOverride(&ots_heading_rungun))
+                    {
+                        work->control.turn.vy = gSnaMoveDir_800ABBA4;
+                    }
+                }
             }
             else if (work->field_9B0_pad_ptr->status & (PAD_DOWN | PAD_UP))
             {
