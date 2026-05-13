@@ -117,9 +117,10 @@ void FreeCam_Tick(void)
         }
 
         /* Integrate right stick into yaw/pitch deltas while OTS is active.
-         * Pitch is clamped here; Phase 4's eye/center reads use g_ots_pitch
-         * directly. */
-        if (ots_active)
+         * Gate on pad->analog: right_dx/right_dy hold stale values when
+         * analog mode is off (pad.c only writes them inside the analog
+         * branch), which would otherwise drift the cam. */
+        if (ots_active && pad->analog > 0)
         {
             int rx = (int)pad->right_dx - 0x80;
             int ry = (int)pad->right_dy - 0x80;
@@ -170,7 +171,10 @@ void FreeCam_Tick(void)
          * integrate into g_yaw (wrap) and g_pitch (clamped to room range).
          * Sensitivity shifts: >> 1 yaw, >> 2 pitch (yaw twice as responsive).
          * Yaw negated so stick-right rotates cam right; pitch left + (stick-up
-         * tilts cam down, MGSV / inverted-Y convention). */
+         * tilts cam down, MGSV / inverted-Y convention).
+         * Gate on pad->analog: right_dx/right_dy hold stale values when
+         * analog mode is off — cam would drift around Snake otherwise. */
+        if (pad->analog > 0)
         {
             int rx = (int)pad->right_dx - 0x80;
             int ry = (int)pad->right_dy - 0x80;
