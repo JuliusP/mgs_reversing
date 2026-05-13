@@ -9,11 +9,11 @@
 #include "game/game.h"
 #include <stddef.h>
 
-/* Input source for camera yaw.
- *   0 = auto-rotate (no controller required, ships as v1 default)
- *   1 = right stick (requires analog controller / PCSX-Redux analog mapping)
- */
-#define FREECAM_YAW_SOURCE 0
+/* Over-the-shoulder placement (active while L2 is held). */
+#define OTS_SHOULDER_OFFSET   0x80    /* ~22.5 deg right of Snake's facing */
+#define OTS_PITCH             0x0100  /* slight downward tilt */
+#define OTS_DISTANCE          600     /* close framing */
+#define OTS_CENTER_VY        (-350)   /* look-at point near Snake's head */
 
 extern UnkCameraStruct2 gUnkCameraStruct2_800B7868;
 extern short            area_name;
@@ -49,6 +49,11 @@ short FreeCam_GetYaw(void)
 void FreeCam_Tick(void)
 {
     const FreeCamRoomConfig *room = g_current_room;
+    GV_PAD *pad;
+    int     ots_active;
+    int     local_distance;
+    int     local_pitch;
+    int     local_center_vy;
     SVECTOR eye;
     SVECTOR center;
     int     cos_p, sin_p, cos_y, sin_y;
@@ -56,36 +61,35 @@ void FreeCam_Tick(void)
 
     if (room == NULL) { return; }
 
-#if FREECAM_YAW_SOURCE == 0
-    /* Auto-rotate: ~one revolution per ~8.5s @ 60fps. */
-    g_yaw = (short)((g_yaw + 8) & 0x0FFF);
-#else
+    pad = &GV_PadData[0];
+    ots_active = (pad->status & PAD_L2) != 0;
+
+    if (ots_active)
     {
-        GV_PAD *pad = &GV_PadData[0];
-        int     rx, ry;
-
-        rx = (int)pad->right_dx - 0x80;
-        ry = (int)pad->right_dy - 0x80;
-        if (rx > -8 && rx < 8) { rx = 0; }
-        if (ry > -8 && ry < 8) { ry = 0; }
-
-        g_yaw   = (short)((g_yaw + (rx >> 2)) & 0x0FFF);
-        g_pitch = (short)(g_pitch + (ry >> 3));
-        if (g_pitch < room->min_pitch) { g_pitch = room->min_pitch; }
-        if (g_pitch > room->max_pitch) { g_pitch = room->max_pitch; }
+        g_yaw           = (short)((GM_PlayerHeading + OTS_SHOULDER_OFFSET) & 0x0FFF);
+        local_pitch     = OTS_PITCH;
+        local_distance  = OTS_DISTANCE;
+        local_center_vy = OTS_CENTER_VY;
     }
-#endif
+    else
+    {
+        /* Auto-rotate orbit: ~one revolution per ~8.5s @ 60fps. */
+        g_yaw           = (short)((g_yaw + 8) & 0x0FFF);
+        local_pitch     = g_pitch;
+        local_distance  = g_distance;
+        local_center_vy = -200;
+    }
 
     cos_y = rcos(g_yaw);
     sin_y = rsin(g_yaw);
-    cos_p = rcos(g_pitch);
-    sin_p = rsin(g_pitch);
+    cos_p = rcos(local_pitch);
+    sin_p = rsin(local_pitch);
 
-    horiz = (g_distance * cos_p) >> 12;
+    horiz = (local_distance * cos_p) >> 12;
 
     eye.vx = GM_PlayerPosition.vx + (short)((horiz * sin_y) >> 12);
     eye.vz = GM_PlayerPosition.vz + (short)((horiz * cos_y) >> 12);
-    eye.vy = GM_PlayerPosition.vy - (short)((g_distance * sin_p) >> 12);
+    eye.vy = GM_PlayerPosition.vy - (short)((local_distance * sin_p) >> 12);
     eye.pad = 0;
 
     if (eye.vx < room->bounds_min.vx) { eye.vx = room->bounds_min.vx; }
@@ -96,7 +100,7 @@ void FreeCam_Tick(void)
     if (eye.vz > room->bounds_max.vz) { eye.vz = room->bounds_max.vz; }
 
     center = GM_PlayerPosition;
-    center.vy -= 200;
+    center.vy += local_center_vy;
     center.pad = 0;
 
     gUnkCameraStruct2_800B7868.eye    = eye;
