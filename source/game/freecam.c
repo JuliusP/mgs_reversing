@@ -11,9 +11,10 @@
 #include <stddef.h>
 
 /* Over-the-shoulder placement (active while Snake is aiming a weapon). */
-#define OTS_SHOULDER_OFFSET   0x80    /* ~22.5 deg right of Snake's facing */
-#define OTS_PITCH             0x0100  /* slight downward tilt */
-#define OTS_DISTANCE          600     /* close framing */
+#define OTS_YAW_FLIP          0x800   /* 180 deg, put camera behind Snake (not in front) */
+#define OTS_SHOULDER_OFFSET   0x100   /* ~45 deg shoulder displacement */
+#define OTS_PITCH             0x0080  /* gentle downward tilt */
+#define OTS_DISTANCE          1000    /* further from Snake for breathing room */
 #define OTS_CENTER_VY        (-350)   /* look-at point near Snake's head */
 
 extern UnkCameraStruct2 gUnkCameraStruct2_800B7868;
@@ -70,7 +71,7 @@ void FreeCam_Tick(void)
 
     if (ots_active)
     {
-        g_yaw           = (short)((GM_PlayerHeading + OTS_SHOULDER_OFFSET) & 0x0FFF);
+        g_yaw           = (short)((GM_PlayerHeading + OTS_YAW_FLIP + OTS_SHOULDER_OFFSET) & 0x0FFF);
         local_pitch     = OTS_PITCH;
         local_distance  = OTS_DISTANCE;
         local_center_vy = OTS_CENTER_VY;
