@@ -5691,21 +5691,24 @@ void sna_anim_shoot_weapon_helper_80057590(SnaInitWork *work, int time)
     }
 
     {
-        short ots_heading;
-        if (FreeCam_GetAimOverride(&ots_heading))
+        short snap_heading;
+        if (FreeCam_ConsumeAimSnap(&snap_heading))
         {
-            work->control.turn.vy = ots_heading;
-            if (gSnaMoveDir_800ABBA4 < 0)
-            {
-                SetAction_8004E22C(work, work->actpack->still->setup, 4);
-                return;
-            }
+            work->control.turn.vy = snap_heading;
         }
-        else if (gSnaMoveDir_800ABBA4 < 0)
+    }
+    {
+        short yaw_inc;
+        if (FreeCam_ConsumeAimYawInc(&yaw_inc) && yaw_inc != 0)
         {
-            SetAction_8004E22C(work, work->actpack->still->setup, 4);
-            return;
+            work->control.turn.vy = (short)((work->control.turn.vy + yaw_inc) & 0x0FFF);
         }
+    }
+
+    if (gSnaMoveDir_800ABBA4 < 0)
+    {
+        SetAction_8004E22C(work, work->actpack->still->setup, 4);
+        return;
     }
 
     status = work->field_9B0_pad_ptr->status;
@@ -5737,13 +5740,7 @@ void sna_anim_shoot_weapon_helper_80057590(SnaInitWork *work, int time)
                     sna_start_anim_8004E1F4(work, &sna_anim_rungun_begin_80056BDC);
                 }
 
-                {
-                    short ots_heading_rungun;
-                    if (!FreeCam_GetAimOverride(&ots_heading_rungun))
-                    {
-                        work->control.turn.vy = gSnaMoveDir_800ABBA4;
-                    }
-                }
+                work->control.turn.vy = gSnaMoveDir_800ABBA4;
             }
             else if (work->field_9B0_pad_ptr->status & (PAD_DOWN | PAD_UP))
             {

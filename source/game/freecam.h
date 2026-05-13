@@ -9,9 +9,16 @@ int  FreeCam_IsActive(void);
 void FreeCam_Tick(void);
 short FreeCam_GetYaw(void);
 
-/* OTS free-look: if OTS is active this frame, populates *out_heading with
- * the right-stick-driven heading (libgte units, 0..0x0FFF) and returns 1.
- * Returns 0 when OTS is not active — callers fall back to vanilla logic. */
-int FreeCam_GetAimOverride(short *out_heading);
+/* OTS free-look entry snap. Returns 1 ONCE on the rising edge of OTS aim,
+ * populates *out_heading with the absolute heading Snake should be set to
+ * (cam-look direction). Returns 0 on all other frames. Caller writes
+ * out_heading to work->control.turn.vy. */
+int FreeCam_ConsumeAimSnap(short *out_heading);
+
+/* OTS free-look per-frame yaw nudge. Returns 1 each frame OTS is active,
+ * populates *out_inc with the signed RX-derived delta (libgte units) to
+ * ADD to Snake's current turn.vy. Resets to 0 after consume so a single
+ * frame's input is applied exactly once. */
+int FreeCam_ConsumeAimYawInc(short *out_inc);
 
 #endif
