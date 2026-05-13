@@ -8162,6 +8162,7 @@ static void Act(SnaInitWork *work)
     }
 
     GM_PlayerPosition = vec = work->control.mov;
+    GM_PlayerHeading = (short)work->control.turn.vy;
 
     if ( sna_check_flags1_8004E31C(work, SNA_FLAG1_UNK16) )
     {
@@ -8494,6 +8495,7 @@ static inline int GetResources(SnaInitWork *work, int name, int where)
 
     GM_PlayerControl = control;
     GM_PlayerPosition = work->control.mov;
+    GM_PlayerHeading = (short)work->control.turn.vy;
     GM_PlayerBody = body;
 
     sna_8004EB14(work);
