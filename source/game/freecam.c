@@ -12,8 +12,8 @@
 
 /* Over-the-shoulder placement (active while Snake is aiming a weapon). */
 #define OTS_YAW_FLIP          0x800   /* 180 deg, put camera behind Snake (not in front) */
-#define OTS_SHOULDER_OFFSET   0x100   /* ~45 deg shoulder displacement */
-#define OTS_PITCH             0x0080  /* gentle downward tilt */
+#define OTS_SHOULDER_OFFSET   0x180   /* ~67.5 deg shoulder displacement */
+#define OTS_PITCH             0x0100  /* steeper tilt, eye sits higher */
 #define OTS_DISTANCE          1000    /* further from Snake for breathing room */
 #define OTS_CENTER_VY        (-350)   /* look-at point near Snake's head */
 
