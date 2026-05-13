@@ -5694,7 +5694,14 @@ void sna_anim_shoot_weapon_helper_80057590(SnaInitWork *work, int time)
         short snap_heading;
         if (FreeCam_ConsumeAimSnap(&snap_heading))
         {
+            /* One-shot snap on aim entry. Force the still-aim pose and
+             * return so the rest of the helper (rungun / sna_8004EF14
+             * / etc.) can't overwrite turn.vy this frame if the player
+             * happens to be holding the left stick. Vanilla aim logic
+             * resumes next frame. */
             work->control.turn.vy = snap_heading;
+            SetAction_8004E22C(work, work->actpack->still->setup, 4);
+            return;
         }
     }
     {
