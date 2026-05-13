@@ -38,7 +38,7 @@ extern short            area_name;
 static const FreeCamRoomConfig *g_current_room = NULL;
 static short g_yaw      = 0;
 static short g_pitch    = 0x0200;
-static int   g_distance = 3200;
+static int   g_distance = 3800;
 
 /* OTS free-look state. g_ots_active is the "this frame" flag consumed by
  * FreeCam_GetAimOverride; the previous frame's value is captured into a
