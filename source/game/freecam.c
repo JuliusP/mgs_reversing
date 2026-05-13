@@ -7,9 +7,10 @@
 #include "common.h"
 #include "libgv/libgv.h"
 #include "game/game.h"
+#include "linkvar.h"
 #include <stddef.h>
 
-/* Over-the-shoulder placement (active while L2 is held). */
+/* Over-the-shoulder placement (active while Snake is aiming a weapon). */
 #define OTS_SHOULDER_OFFSET   0x80    /* ~22.5 deg right of Snake's facing */
 #define OTS_PITCH             0x0100  /* slight downward tilt */
 #define OTS_DISTANCE          600     /* close framing */
@@ -62,7 +63,10 @@ void FreeCam_Tick(void)
     if (room == NULL) { return; }
 
     pad = &GV_PadData[0];
-    ots_active = (pad->status & PAD_L2) != 0;
+    /* "Shoot mode" = Square held with a weapon equipped. Mirrors sna_8005009C's
+     * aim/fire branch in sna_init.c so the camera engages exactly when Snake's
+     * weapon animation does. */
+    ots_active = ((pad->status & PAD_SQUARE) != 0) && (GM_CurrentWeaponId != WP_None);
 
     if (ots_active)
     {
