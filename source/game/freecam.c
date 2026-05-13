@@ -36,7 +36,7 @@ void FreeCam_Init(void)
     g_current_room = NULL;
     g_yaw      = 0;
     g_pitch    = 0x0200;
-    g_distance = 1800;
+    g_distance = 2400;
 }
 
 void FreeCam_OnStageChange(void)
@@ -101,8 +101,21 @@ void FreeCam_Tick(void)
         int cos_p, sin_p, cos_y, sin_y;
         int horiz;
 
-        /* Auto-rotate orbit: ~one revolution per ~8.5s @ 60fps. */
-        g_yaw = (short)((g_yaw + 8) & 0x0FFF);
+        /* Right stick drives yaw and pitch. Fields are unsigned 0..255 centered
+         * at 0x80; subtract to get signed deltas (-128..127), deadzone, then
+         * integrate into g_yaw (wrap) and g_pitch (clamped to room range).
+         * Sensitivity shifts: >> 2 yaw, >> 3 pitch (yaw twice as responsive). */
+        {
+            int rx = (int)pad->right_dx - 0x80;
+            int ry = (int)pad->right_dy - 0x80;
+            if (rx > -8 && rx < 8) { rx = 0; }
+            if (ry > -8 && ry < 8) { ry = 0; }
+
+            g_yaw   = (short)((g_yaw + (rx >> 2)) & 0x0FFF);
+            g_pitch = (short)(g_pitch + (ry >> 3));
+            if (g_pitch < room->min_pitch) { g_pitch = room->min_pitch; }
+            if (g_pitch > room->max_pitch) { g_pitch = room->max_pitch; }
+        }
 
         cos_y = rcos(g_yaw);
         sin_y = rsin(g_yaw);
