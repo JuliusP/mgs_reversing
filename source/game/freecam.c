@@ -124,7 +124,7 @@ void FreeCam_Tick(void)
             if (rx > -8 && rx < 8) { rx = 0; }
             if (ry > -8 && ry < 8) { ry = 0; }
 
-            g_ots_yaw_delta = (short)(g_ots_yaw_delta + (rx >> OTS_YAW_SHIFT));
+            g_ots_yaw_delta = (short)(g_ots_yaw_delta - (rx >> OTS_YAW_SHIFT));
             g_ots_pitch     = (short)(g_ots_pitch     + (ry >> OTS_PITCH_SHIFT));
             if (g_ots_pitch < -OTS_PITCH_LIMIT) { g_ots_pitch = -OTS_PITCH_LIMIT; }
             if (g_ots_pitch >  OTS_PITCH_LIMIT) { g_ots_pitch =  OTS_PITCH_LIMIT; }
