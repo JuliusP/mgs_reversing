@@ -305,6 +305,7 @@ extern int      GM_Photocode;
 //extern int dword_800ABA08;
 extern int      GM_PlayerMap;
 extern SVECTOR  GM_PlayerPosition;
+extern short    GM_PlayerHeading;
 extern int      GM_AlertLevel;
 extern int      dword_800ABA1C;
 extern OBJECT  *GM_PlayerBody;
