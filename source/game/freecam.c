@@ -14,12 +14,14 @@
  * The OTS path is a direct translation in world space, not a spherical orbit:
  *   eye    = Snake + right * SHOULDER_DIST + up * EYE_HEIGHT - forward * BEHIND_DIST
  *   center = Snake + forward * LOOK_FORWARD + up * LOOK_HEIGHT
- * Look-at sits far ahead so the camera looks where Snake aims, not at Snake. */
-#define OTS_SHOULDER_DIST   500    /* lateral world units to Snake's right */
+ * Look-at sits far ahead so the camera looks where Snake aims, not at Snake.
+ * NOTE: empirically +Y is UP in this engine (cam was previously rendered
+ * underneath Snake when subtracting heights — see commit history). */
+#define OTS_SHOULDER_DIST  (-500)  /* negative = Snake's right side under this engine's axes */
 #define OTS_BEHIND_DIST     400    /* world units behind Snake's facing */
-#define OTS_EYE_HEIGHT      500    /* eye above feet (PSX -Y is up) */
+#define OTS_EYE_HEIGHT      1000   /* eye above Snake (added to vy) */
 #define OTS_LOOK_FORWARD    8000   /* far-ahead target along Snake's facing */
-#define OTS_LOOK_HEIGHT     500    /* aim point above feet */
+#define OTS_LOOK_HEIGHT     1000   /* aim point above Snake, matches eye for level look */
 
 extern UnkCameraStruct2 gUnkCameraStruct2_800B7868;
 extern short            area_name;
@@ -80,13 +82,13 @@ void FreeCam_Tick(void)
         eye.vz = GM_PlayerPosition.vz
                - (short)((sin_h * OTS_SHOULDER_DIST) >> 12)
                - (short)((cos_h * OTS_BEHIND_DIST)   >> 12);
-        eye.vy = GM_PlayerPosition.vy - OTS_EYE_HEIGHT;
+        eye.vy = GM_PlayerPosition.vy + OTS_EYE_HEIGHT;
         eye.pad = 0;
 
         /* Look-at: far ahead of Snake along his facing. */
         center.vx = GM_PlayerPosition.vx + (short)((sin_h * OTS_LOOK_FORWARD) >> 12);
         center.vz = GM_PlayerPosition.vz + (short)((cos_h * OTS_LOOK_FORWARD) >> 12);
-        center.vy = GM_PlayerPosition.vy - OTS_LOOK_HEIGHT;
+        center.vy = GM_PlayerPosition.vy + OTS_LOOK_HEIGHT;
         center.pad = 0;
     }
     else
@@ -106,11 +108,11 @@ void FreeCam_Tick(void)
 
         eye.vx = GM_PlayerPosition.vx + (short)((horiz * sin_y) >> 12);
         eye.vz = GM_PlayerPosition.vz + (short)((horiz * cos_y) >> 12);
-        eye.vy = GM_PlayerPosition.vy - (short)((g_distance * sin_p) >> 12);
+        eye.vy = GM_PlayerPosition.vy + (short)((g_distance * sin_p) >> 12);
         eye.pad = 0;
 
         center = GM_PlayerPosition;
-        center.vy -= 200;
+        center.vy += 200;
         center.pad = 0;
     }
 
