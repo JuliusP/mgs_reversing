@@ -18,10 +18,10 @@
  * NOTE: empirically +Y is UP in this engine (cam was previously rendered
  * underneath Snake when subtracting heights — see commit history). */
 #define OTS_SHOULDER_DIST  (-500)  /* negative = Snake's right side under this engine's axes */
-#define OTS_BEHIND_DIST     400    /* world units behind Snake's facing */
-#define OTS_EYE_HEIGHT      1000   /* eye above Snake (added to vy) */
+#define OTS_BEHIND_DIST     1500   /* further back so Snake's shoulder sits in frame */
+#define OTS_EYE_HEIGHT      700    /* eye above Snake (added to vy) */
 #define OTS_LOOK_FORWARD    8000   /* far-ahead target along Snake's facing */
-#define OTS_LOOK_HEIGHT     1000   /* aim point above Snake, matches eye for level look */
+#define OTS_LOOK_HEIGHT     700    /* aim point above Snake, matches eye for level look */
 
 extern UnkCameraStruct2 gUnkCameraStruct2_800B7868;
 extern short            area_name;
@@ -29,14 +29,14 @@ extern short            area_name;
 static const FreeCamRoomConfig *g_current_room = NULL;
 static short g_yaw      = 0;
 static short g_pitch    = 0x0200;
-static int   g_distance = 1200;
+static int   g_distance = 1800;
 
 void FreeCam_Init(void)
 {
     g_current_room = NULL;
     g_yaw      = 0;
     g_pitch    = 0x0200;
-    g_distance = 1200;
+    g_distance = 1800;
 }
 
 void FreeCam_OnStageChange(void)
