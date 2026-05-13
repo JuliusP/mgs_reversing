@@ -98,11 +98,13 @@ void FreeCam_Tick(void)
         ots_active = ((pad->status & PAD_SQUARE) != 0) && (GM_CurrentWeaponId != WP_None);
         g_ots_active = (char)ots_active;
 
-        /* Rising edge: capture Snake's heading as the base; zero integrators
-         * so the first frame of aim sits exactly at the captured heading. */
+        /* Rising edge: snap Snake's heading to where the orbit cam was
+         * looking. (g_yaw + 2048) is the inverse of the OTS pad_origin
+         * relation; it converts cam-yaw into Snake-facing. RE4 convention:
+         * entering aim turns Snake to camera direction, cam stays put. */
         if (!was_active && ots_active)
         {
-            g_ots_base_heading = GM_PlayerHeading;
+            g_ots_base_heading = (short)((g_yaw + 2048) & 0x0FFF);
             g_ots_yaw_delta    = 0;
             g_ots_pitch        = 0;
         }
