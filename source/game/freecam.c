@@ -59,6 +59,7 @@ void FreeCam_Tick(void)
     const FreeCamRoomConfig *room = g_current_room;
     GV_PAD *pad;
     int     ots_active;
+    int     pad_origin;
     SVECTOR eye;
     SVECTOR center;
 
@@ -90,6 +91,10 @@ void FreeCam_Tick(void)
         center.vz = GM_PlayerPosition.vz + (short)((cos_h * OTS_LOOK_FORWARD) >> 12);
         center.vy = GM_PlayerPosition.vy + OTS_LOOK_HEIGHT;
         center.pad = 0;
+
+        /* Eye is behind Snake along his heading; cam-forward = heading.
+         * +2048 empirical: engine's pad-dir convention is opposite of cam-forward. */
+        pad_origin = (GM_PlayerHeading + 2048) & 0x0FFF;
     }
     else
     {
@@ -114,6 +119,9 @@ void FreeCam_Tick(void)
         center = GM_PlayerPosition;
         center.vy += 200;
         center.pad = 0;
+
+        /* Eye sits at angle g_yaw around Snake; pad-dir uses opposite convention. */
+        pad_origin = g_yaw & 0x0FFF;
     }
 
     if (eye.vx < room->bounds_min.vx) { eye.vx = room->bounds_min.vx; }
@@ -126,4 +134,6 @@ void FreeCam_Tick(void)
     gUnkCameraStruct2_800B7868.eye    = eye;
     gUnkCameraStruct2_800B7868.center = center;
     gUnkCameraStruct2_800B7868.zoom   = 320;
+
+    GV_OriginPadSystem(pad_origin);
 }
