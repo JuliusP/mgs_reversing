@@ -13,6 +13,7 @@
 #include "game.h"
 #include "linkvar.h"
 #include "strcode.h"
+#include "freecam.h"
 
 STATIC int     SECTION(".sbss") dword_800ABA84;
 STATIC SVECTOR SECTION(".sbss") svec_800ABA88;
@@ -974,33 +975,44 @@ static void Act(GV_ACT *work)
     {
         if (GV_PauseLevel == 0)
         {
-            CheckMessage(work);
-            changed = CheckEvents(work);
+            FreeCam_OnStageChange();
 
-            camera_act_helper3_8002F64C();
-
-            if (GM_Camera.first_person == 1)
+            if (FreeCam_IsActive())
             {
-                camera_act_helper_8002F1C8();
-                camera_act_helper7_8002FB54();
+                CheckMessage(work);
+                (void)CheckEvents(work);
+                FreeCam_Tick();
             }
             else
             {
-                iVar2 = camera_act_helper2_8002F5C4();
-                camera_act_helper7_8002FB54();
+                CheckMessage(work);
+                changed = CheckEvents(work);
 
-                if (iVar2 > 0)
+                camera_act_helper3_8002F64C();
+
+                if (GM_Camera.first_person == 1)
                 {
-                    sub_8002EADC(iVar2 - 1);
+                    camera_act_helper_8002F1C8();
+                    camera_act_helper7_8002FB54();
                 }
-            }
+                else
+                {
+                    iVar2 = camera_act_helper2_8002F5C4();
+                    camera_act_helper7_8002FB54();
 
-            if (changed)
-            {
-                svec_800ABA88 = GM_Camera.eye;
-            }
+                    if (iVar2 > 0)
+                    {
+                        sub_8002EADC(iVar2 - 1);
+                    }
+                }
 
-            camera_act_helper4_8002F78C();
+                if (changed)
+                {
+                    svec_800ABA88 = GM_Camera.eye;
+                }
+
+                camera_act_helper4_8002F78C();
+            }
         }
 
         DG_LookAt(DG_Chanl(0),
@@ -1036,6 +1048,8 @@ void *NewCameraSystem(void)
     gUnkCameraStruct_800B77B8.rotate2.vx = 0;
     gUnkCameraStruct_800B77B8.rotate2.vy = 2048;
     gUnkCameraStruct_800B77B8.rotate2.vz = 0;
+
+    FreeCam_Init();
 
     return (void *)work;
 }
