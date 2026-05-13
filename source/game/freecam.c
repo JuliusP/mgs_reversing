@@ -29,14 +29,14 @@ extern short            area_name;
 static const FreeCamRoomConfig *g_current_room = NULL;
 static short g_yaw      = 0;
 static short g_pitch    = 0x0200;
-static int   g_distance = 1800;
+static int   g_distance = 3200;
 
 void FreeCam_Init(void)
 {
     g_current_room = NULL;
     g_yaw      = 0;
     g_pitch    = 0x0200;
-    g_distance = 2400;
+    g_distance = 3200;
 }
 
 void FreeCam_OnStageChange(void)
@@ -104,15 +104,16 @@ void FreeCam_Tick(void)
         /* Right stick drives yaw and pitch. Fields are unsigned 0..255 centered
          * at 0x80; subtract to get signed deltas (-128..127), deadzone, then
          * integrate into g_yaw (wrap) and g_pitch (clamped to room range).
-         * Sensitivity shifts: >> 2 yaw, >> 3 pitch (yaw twice as responsive). */
+         * Sensitivity shifts: >> 1 yaw, >> 2 pitch (yaw twice as responsive).
+         * Signs negated: stick-right rotates cam right, stick-up tilts cam up. */
         {
             int rx = (int)pad->right_dx - 0x80;
             int ry = (int)pad->right_dy - 0x80;
             if (rx > -8 && rx < 8) { rx = 0; }
             if (ry > -8 && ry < 8) { ry = 0; }
 
-            g_yaw   = (short)((g_yaw + (rx >> 2)) & 0x0FFF);
-            g_pitch = (short)(g_pitch + (ry >> 3));
+            g_yaw   = (short)((g_yaw - (rx >> 1)) & 0x0FFF);
+            g_pitch = (short)(g_pitch - (ry >> 2));
             if (g_pitch < room->min_pitch) { g_pitch = room->min_pitch; }
             if (g_pitch > room->max_pitch) { g_pitch = room->max_pitch; }
         }
