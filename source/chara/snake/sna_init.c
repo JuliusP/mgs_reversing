@@ -1203,7 +1203,7 @@ void sna_8005027C(SnaInitWork *work, int time)
         work->control.turn.vy = dword_800ABBD0;
     }
 
-    if ((time < 8) || !(work->field_9B0_pad_ptr->press & PAD_SQUARE) || (work->field_9C0 == sna_80057378))
+    if ((time < 8) || !(work->field_9B0_pad_ptr->press & PAD_R1) || (work->field_9C0 == sna_80057378))
     {
         return;
     }
@@ -3634,7 +3634,7 @@ void sna_gun_800540D0(SnaInitWork *work, int time)
         work->field_A38_local_data = 0;
     }
 
-    if ((work->field_9B0_pad_ptr->release & PAD_SQUARE) != 0)
+    if ((work->field_9B0_pad_ptr->release & PAD_R1) != 0)
     {
         work->field_A38_local_data = 1;
     }
@@ -6031,7 +6031,7 @@ void sub_80057BF0(SnaInitWork *work, int time)
 
     trg = 1;
 
-    if ( (temp_s3 & 1) ? (status & PAD_SQUARE) : (release & PAD_SQUARE) )
+    if ( (temp_s3 & 1) ? (status & PAD_R1) : (release & PAD_R1) )
     {
         var_s2 = 1;
     }
@@ -6177,7 +6177,7 @@ void sna_anim_psg1_helper_80057FD4(SnaInitWork* work, int time)
         return;
     }
 
-    if ( (work->field_9B0_pad_ptr->release & PAD_SQUARE) &&
+    if ( (work->field_9B0_pad_ptr->release & PAD_R1) &&
          !(GM_GameStatus & STATE_PADRELEASE) &&
          !GM_CheckPlayerStatusFlag(PLAYER_PAD_OFF) &&
          (DG_UnDrawFrameCount == 0) )
@@ -6304,7 +6304,7 @@ STATIC void OP_ShootStinger(SnaInitWork *work, int time)
 
     trg = 1; // 1 = WEAPON_TAKE
 
-    if ((work->field_9B0_pad_ptr->release & PAD_SQUARE) &&
+    if ((work->field_9B0_pad_ptr->release & PAD_R1) &&
         !(GM_GameStatus & STATE_PADRELEASE) &&
         !GM_CheckPlayerStatusFlag(PLAYER_PAD_OFF))
     {
@@ -6376,7 +6376,7 @@ void sna_anim_grenade_80058470(SnaInitWork *work, int time)
 
         break;
     case 1:
-        if (!(work->field_9B0_pad_ptr->status & PAD_SQUARE) && (DG_UnDrawFrameCount == 0))
+        if (!(work->field_9B0_pad_ptr->status & PAD_R1) && (DG_UnDrawFrameCount == 0))
         {
             sna_8004E260(work, work->actpack->attack->shoot, 1, bits);
             work->field_924 = 2;
@@ -6394,7 +6394,7 @@ void sna_anim_grenade_80058470(SnaInitWork *work, int time)
     case 3:
         res = 0;
 
-        if ((uVar2 > 11) && (work->field_9B0_pad_ptr->status & PAD_SQUARE))
+        if ((uVar2 > 11) && (work->field_9B0_pad_ptr->status & PAD_R1))
         {
             work->field_910 = 0;
             return;
@@ -6426,7 +6426,7 @@ void sub_80058644(SnaInitWork *work, int time)
             sub_8004EEB0(work);
         }
 
-        if ((work->field_9B0_pad_ptr->status & PAD_SQUARE) == 0 && iVar1 == 0 && DG_UnDrawFrameCount == 0)
+        if ((work->field_9B0_pad_ptr->status & PAD_R1) == 0 && iVar1 == 0 && DG_UnDrawFrameCount == 0)
         {
             iVar1 = sub_8004E5E8(work, 0x80);
             if (iVar1 == 1)
@@ -6476,7 +6476,7 @@ void sna_anim_claymore_helper_80058780(SnaInitWork *work, int time)
         DG_VisiblePrim(work->field_92C);
         DG_PutPrim(&work->field_92C->world);
 
-        if ( !(work->field_9B0_pad_ptr->status & PAD_SQUARE) && (DG_UnDrawFrameCount == 0) )
+        if ( !(work->field_9B0_pad_ptr->status & PAD_R1) && (DG_UnDrawFrameCount == 0) )
         {
             var_s1 = sub_8004E5E8(work, 0x40);
 
