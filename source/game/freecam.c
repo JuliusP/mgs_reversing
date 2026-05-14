@@ -254,3 +254,8 @@ int FreeCam_ConsumeAimYawInc(short *out_inc)
     g_ots_yaw_inc = 0;
     return 1;
 }
+
+int FreeCam_IsAimActive(void)
+{
+    return (int)g_ots_active;
+}

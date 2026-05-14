@@ -5708,16 +5708,24 @@ void sna_anim_shoot_weapon_helper_80057590(SnaInitWork *work, int time)
         short yaw_inc;
         if (FreeCam_ConsumeAimYawInc(&yaw_inc))
         {
-            /* OTS active: apply right-stick yaw increment, hold the still-aim
-             * pose, and skip the rest of the helper. This suppresses vanilla
-             * left-stick rotation (sna_8004EF14), rungun transitions, and
-             * prone-from-aim trigger. Fire still works because sub_80057BF0
-             * runs independently of this helper. */
+            /* OTS active: apply right-stick yaw to body, then either trigger
+             * strafe-walk (rungun) or hold still-aim pose. The rungun helper
+             * is patched to suppress its body-rotation and CROSS-exit while
+             * FreeCam_IsAimActive() so strafe direction is decoupled from
+             * body heading. Fire still works because sub_80057BF0 runs
+             * independently of this helper. */
             if (yaw_inc != 0)
             {
                 work->control.turn.vy = (short)((work->control.turn.vy + yaw_inc) & 0x0FFF);
             }
-            SetAction_8004E22C(work, work->actpack->still->setup, 4);
+            if (gSnaMoveDir_800ABBA4 >= 0)
+            {
+                sna_start_anim_8004E1F4(work, &sna_anim_rungun_begin_80056BDC);
+            }
+            else
+            {
+                SetAction_8004E22C(work, work->actpack->still->setup, 4);
+            }
             return;
         }
     }
@@ -5811,7 +5819,11 @@ void sna_anim_rungun_helper_80057844(SnaInitWork *work, int time)
         return;
     }
 
-    if (gSnaMoveDir_800ABBA4 < 0 || (!(work->field_920_tbl & 8) && !(work->field_9B0_pad_ptr->status & PAD_CROSS)))
+    /* Exit conditions: left stick neutral (always), OR no-CROSS for 5
+     * frames (vanilla rungun semantics, but suppressed when OTS aim is
+     * active so the player can strafe without holding fire). */
+    if (gSnaMoveDir_800ABBA4 < 0 ||
+        (!(work->field_920_tbl & 8) && !(work->field_9B0_pad_ptr->status & PAD_CROSS) && !FreeCam_IsAimActive()))
     {
         if (++work->field_A3A >= 5)
         {
@@ -5827,17 +5839,32 @@ void sna_anim_rungun_helper_80057844(SnaInitWork *work, int time)
 
     if (!sna_sub_8004E358(work, SNA_FLAG2_UNK5))
     {
-        if (gSnaMoveDir_800ABBA4 < 0)
+        if (FreeCam_IsAimActive())
         {
-            angle = work->control.turn.vy;
+            /* OTS strafe: keep body locked, let right stick yaw it. The
+             * translation comes from gSnaMoveDir via the engine's step
+             * calc (pVec_800ABBCC), independent of turn.vy. */
+            short yaw_inc;
+            if (FreeCam_ConsumeAimYawInc(&yaw_inc) && yaw_inc != 0)
+            {
+                work->control.turn.vy = (short)((work->control.turn.vy + yaw_inc) & 0x0FFF);
+            }
+            sub_8004EA50(work, work->control.turn.vy);
         }
         else
         {
-            angle = sub_8004E4C0(work, gSnaMoveDir_800ABBA4);
-        }
+            if (gSnaMoveDir_800ABBA4 < 0)
+            {
+                angle = work->control.turn.vy;
+            }
+            else
+            {
+                angle = sub_8004E4C0(work, gSnaMoveDir_800ABBA4);
+            }
 
-        work->control.turn.vy = angle;
-        sub_8004EA50(work, angle);
+            work->control.turn.vy = angle;
+            sub_8004EA50(work, angle);
+        }
     }
     else if (!(work->field_9B0_pad_ptr->status & (PAD_DOWN | PAD_UP)))
     {

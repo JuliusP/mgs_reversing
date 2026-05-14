@@ -21,4 +21,8 @@ int FreeCam_ConsumeAimSnap(short *out_heading);
  * frame's input is applied exactly once. */
 int FreeCam_ConsumeAimYawInc(short *out_inc);
 
+/* Non-consuming check: 1 if OTS aim is engaged this frame. Used by
+ * sna_init.c's rungun helper to gate strafe-mode behavior. */
+int FreeCam_IsAimActive(void);
+
 #endif
