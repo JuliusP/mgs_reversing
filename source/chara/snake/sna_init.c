@@ -1116,7 +1116,7 @@ int sna_8005009C(SnaInitWork *work)
         input = pPad->status;
     }
 
-    if (input & PAD_SQUARE)
+    if (input & PAD_L1)
     {
         work->field_910 = 0;
 
@@ -3596,11 +3596,11 @@ void sub_80053FAC(SnaInitWork *work, int time)
     }
 
     pad_status = work->field_9B0_pad_ptr->status;
-    if (work->body.is_end || (pad_status & PAD_SQUARE) == 0)
+    if (work->body.is_end || (pad_status & PAD_L1) == 0)
     {
         sna_clear_flags1_8004E308(work, SNA_FLAG1_UNK3);
         work->field_910 = 0;
-        if ((pad_status & PAD_SQUARE) != 0)
+        if ((pad_status & PAD_L1) != 0)
         {
             GM_SeSet(&work->control.mov, SE_READY_WEAPON);
             GM_SetPlayerStatusFlag(PLAYER_ATTACK);
@@ -3639,7 +3639,7 @@ void sna_gun_800540D0(SnaInitWork *work, int time)
         work->field_A38_local_data = 1;
     }
 
-    if ((work->field_9B0_pad_ptr->status & PAD_SQUARE) != 0)
+    if ((work->field_9B0_pad_ptr->status & PAD_L1) != 0)
     {
         work->field_926++;
     }
@@ -5965,7 +5965,7 @@ void sna_80057A90(SnaInitWork *work, int time)
 
     if (work->body.time2 != 0)
     {
-        if (!(work->field_9B0_pad_ptr->status & PAD_SQUARE))
+        if (!(work->field_9B0_pad_ptr->status & PAD_L1))
         {
             GM_ClearPlayerStatusFlag(PLAYER_ATTACK);
             sna_8004E260(work, 0, 4, 0);

@@ -108,7 +108,7 @@ void FreeCam_Tick(void)
          * aim branch in sna_init.c so the camera engages exactly when Snake's
          * weapon animation does. */
         was_active = (int)g_ots_active;
-        ots_active = ((pad->status & PAD_SQUARE) != 0) && (GM_CurrentWeaponId != WP_None);
+        ots_active = ((pad->status & PAD_L1) != 0) && (GM_CurrentWeaponId != WP_None);
         g_ots_active = (char)ots_active;
 
         /* Rising edge: arm the one-shot snap to camera direction.
