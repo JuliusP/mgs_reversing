@@ -5706,9 +5706,19 @@ void sna_anim_shoot_weapon_helper_80057590(SnaInitWork *work, int time)
     }
     {
         short yaw_inc;
-        if (FreeCam_ConsumeAimYawInc(&yaw_inc) && yaw_inc != 0)
+        if (FreeCam_ConsumeAimYawInc(&yaw_inc))
         {
-            work->control.turn.vy = (short)((work->control.turn.vy + yaw_inc) & 0x0FFF);
+            /* OTS active: apply right-stick yaw increment, hold the still-aim
+             * pose, and skip the rest of the helper. This suppresses vanilla
+             * left-stick rotation (sna_8004EF14), rungun transitions, and
+             * prone-from-aim trigger. Fire still works because sub_80057BF0
+             * runs independently of this helper. */
+            if (yaw_inc != 0)
+            {
+                work->control.turn.vy = (short)((work->control.turn.vy + yaw_inc) & 0x0FFF);
+            }
+            SetAction_8004E22C(work, work->actpack->still->setup, 4);
+            return;
         }
     }
 
