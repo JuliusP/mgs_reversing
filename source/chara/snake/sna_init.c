@@ -5913,7 +5913,11 @@ void sna_auto_aim_800579A0(SnaInitWork *work)
     snake_not_moving = gSnaMoveDir_800ABBA4 < 0;
     work->adjust[7].vx = 3 * out_x_copy / 2; // maybe aim gun/head up/down??
 
-    if (snake_not_moving && out_y >= 0) // if not moving, set snake turn angle
+    /* Suppress the body snap-to-enemy when OTS free-look is active so the
+     * player's right-stick yaw_inc isn't overwritten every frame. The bone
+     * adjusts above (adjust[2/6/7]) still happen, so the gun model retains
+     * its vertical aim-assist toward enemies. */
+    if (snake_not_moving && out_y >= 0 && !FreeCam_IsAimActive()) // if not moving, set snake turn angle
     {
         work->control.turn.vy = out_y;
     }
