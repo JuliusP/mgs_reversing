@@ -89,6 +89,7 @@
     include "{{OBJ_DIR}}\game\camera.obj"
     include "{{OBJ_DIR}}\game\freecam.obj"
     include "{{OBJ_DIR}}\game\freecam_rooms.obj"
+    include "{{OBJ_DIR}}\game\freecam_reticle.obj"
     include "{{OBJ_DIR}}\game\map.obj"
 
     ; libdg.lib (cont.)
