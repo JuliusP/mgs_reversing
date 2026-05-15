@@ -1120,29 +1120,9 @@ void menu_item_update_8003C95C(MenuWork *work, u_long *ot)
                         GV_PauseLevel |= GV_PAUSE_MENU;
                     }
                 }
-                // Quick item equip (L1)
-                else if (!(GM_GameStatus & GAME_FLAG_BIT_19) && (pPad->press & PAD_L1))
-                {
-                    int itemid = GM_CurrentItemId;
-
-                    // Unequip the current item if it is equipped
-                    if (itemid >= 0)
-                    {
-                        GM_CurrentItemId = IT_None;
-                    }
-                    else if (!menu_item_IsItemDisabled_8003B6D0(work->field_1DC_menu_item.field_11))
-                    {
-                        if (GM_Items[work->field_1DC_menu_item.field_11] > 0)
-                        {
-                            GM_CurrentItemId = work->field_1DC_menu_item.field_11;
-                        }
-                    }
-
-                    if (itemid != GM_CurrentItemId)
-                    {
-                        GM_SeSet2(0, 63, SE_ITEM_EQUIP);
-                    }
-                }
+                /* Vanilla bound L1 to quick-toggle equip/unequip current item.
+                 * L1 is now the aim button — toggle removed; use the full menu
+                 * (held L2 + selection) to swap items. */
             }
         }
         else
