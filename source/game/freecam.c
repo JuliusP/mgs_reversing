@@ -24,12 +24,13 @@
 #define OTS_LOOK_HEIGHT     700    /* aim point above Snake, matches eye for level look */
 
 /* OTS free-look tuning. Shifts match the orbit cam's live values so feel
- * is consistent between modes. Pitch limit ~22° each way; the look-at is
- * computed by rotating the forward vector by g_ots_pitch directly, so the
- * cam tilts at the same angle the bone IK uses for the gun. */
+ * is consistent between modes. Pitch limit ~67.5° each way (0x300 of the
+ * 0x1000 libgte full circle); the look-at is computed by rotating the
+ * forward vector by g_ots_pitch directly, so the cam tilts at the same
+ * angle the bone IK uses for the gun. */
 #define OTS_YAW_SHIFT     1
 #define OTS_PITCH_SHIFT   2
-#define OTS_PITCH_LIMIT   0x100
+#define OTS_PITCH_LIMIT   0x300
 
 extern UnkCameraStruct2 gUnkCameraStruct2_800B7868;
 extern short            area_name;
