@@ -29,4 +29,8 @@ int FreeCam_IsAimActive(void);
  * Used by sna_auto_aim to drive bone IK pitch (vertical aim). */
 short FreeCam_GetAimPitch(void);
 
+/* Create the OTS-mode "+" reticle actor. Called once from camera.c during
+ * camera setup; the actor self-toggles visibility based on FreeCam_IsAimActive. */
+void FreeCamReticle_NewActor(void);
+
 #endif

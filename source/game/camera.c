@@ -1054,6 +1054,7 @@ void *NewCameraSystem(void)
     gUnkCameraStruct_800B77B8.rotate2.vz = 0;
 
     FreeCam_Init();
+    FreeCamReticle_NewActor();
 
     return (void *)work;
 }
