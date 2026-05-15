@@ -977,7 +977,11 @@ static void Act(GV_ACT *work)
         {
             FreeCam_OnStageChange();
 
-            if (FreeCam_IsActive())
+            /* Yield the camera back to vanilla when first-person mode is
+             * engaged (Triangle peek, duct, PSG1 scope, torture sequences,
+             * etc. — anything that sets GM_Camera.first_person). Vanilla's
+             * FPV branch (camera_act_helper_8002F1C8) handles those cams. */
+            if (FreeCam_IsActive() && GM_Camera.first_person == 0)
             {
                 CheckMessage(work);
                 (void)CheckEvents(work);

@@ -1410,7 +1410,7 @@ void menu_weapon_update_8003E990(MenuWork *work, u_long *ot)
 {
     GV_PAD         *pPad;
     Menu_Inventory *pMenu;
-    int             selected_id, weapon_id, xoffset;
+    int             xoffset;
 
     pPad = work->field_24_pInput;
 
@@ -1432,30 +1432,9 @@ void menu_weapon_update_8003E990(MenuWork *work, u_long *ot)
                     sub_8003D520();
                 }
             }
-            else if ((!(GM_GameStatus & GAME_FLAG_BIT_19)) && (pPad->press & PAD_R1))
-            {
-                weapon_id = GM_CurrentWeaponId;
-
-                if (GM_CurrentWeaponId > WP_None)
-                {
-                    GM_CurrentWeaponId = WP_None;
-                }
-                else if (!menu_weapon_isWeaponDisabled_8003DF30(work->field_1F0_menu_weapon.field_11))
-                {
-                    selected_id = work->field_1F0_menu_weapon.field_11;
-
-                    if (GM_Weapons[selected_id] > WP_None)
-                    {
-                        GM_CurrentWeaponId = selected_id;
-                    }
-                }
-
-                if (weapon_id != GM_CurrentWeaponId)
-                {
-                    GM_WeaponChanged = 1;
-                    GM_SeSet2(0, 63, SE_ITEM_EQUIP);
-                }
-            }
+            /* Vanilla bound R1 to quick-toggle equip/unequip current weapon.
+             * R1 is now the fire button — toggle removed; use the full menu
+             * (held L2 + selection) to swap weapons. */
         }
     }
     else if (work->field_2A_state == MENU_RIGHT_OPEN)

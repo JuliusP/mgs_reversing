@@ -12,6 +12,7 @@
 #include "libdg/libdg.h"
 #include "libgcl/libgcl.h"
 #include "game/game.h"
+#include "game/freecam.h"
 #include "linkvar.h"
 #include "okajima/blood.h"
 #include "bullet/bakudan.h"
@@ -1115,7 +1116,7 @@ int sna_8005009C(SnaInitWork *work)
         input = pPad->status;
     }
 
-    if (input & PAD_SQUARE)
+    if (input & PAD_L1)
     {
         work->field_910 = 0;
 
@@ -1202,7 +1203,7 @@ void sna_8005027C(SnaInitWork *work, int time)
         work->control.turn.vy = dword_800ABBD0;
     }
 
-    if ((time < 8) || !(work->field_9B0_pad_ptr->press & PAD_SQUARE) || (work->field_9C0 == sna_80057378))
+    if ((time < 8) || !(work->field_9B0_pad_ptr->press & PAD_R1) || (work->field_9C0 == sna_80057378))
     {
         return;
     }
@@ -3595,11 +3596,11 @@ void sub_80053FAC(SnaInitWork *work, int time)
     }
 
     pad_status = work->field_9B0_pad_ptr->status;
-    if (work->body.is_end || (pad_status & PAD_SQUARE) == 0)
+    if (work->body.is_end || (pad_status & PAD_L1) == 0)
     {
         sna_clear_flags1_8004E308(work, SNA_FLAG1_UNK3);
         work->field_910 = 0;
-        if ((pad_status & PAD_SQUARE) != 0)
+        if ((pad_status & PAD_L1) != 0)
         {
             GM_SeSet(&work->control.mov, SE_READY_WEAPON);
             GM_SetPlayerStatusFlag(PLAYER_ATTACK);
@@ -3633,12 +3634,12 @@ void sna_gun_800540D0(SnaInitWork *work, int time)
         work->field_A38_local_data = 0;
     }
 
-    if ((work->field_9B0_pad_ptr->release & PAD_SQUARE) != 0)
+    if ((work->field_9B0_pad_ptr->release & PAD_R1) != 0)
     {
         work->field_A38_local_data = 1;
     }
 
-    if ((work->field_9B0_pad_ptr->status & PAD_SQUARE) != 0)
+    if ((work->field_9B0_pad_ptr->status & PAD_L1) != 0)
     {
         work->field_926++;
     }
@@ -5689,6 +5690,46 @@ void sna_anim_shoot_weapon_helper_80057590(SnaInitWork *work, int time)
         return;
     }
 
+    {
+        short snap_heading;
+        if (FreeCam_ConsumeAimSnap(&snap_heading))
+        {
+            /* One-shot snap on aim entry. Force the still-aim pose and
+             * return so the rest of the helper (rungun / sna_8004EF14
+             * / etc.) can't overwrite turn.vy this frame if the player
+             * happens to be holding the left stick. Vanilla aim logic
+             * resumes next frame. */
+            work->control.turn.vy = snap_heading;
+            SetAction_8004E22C(work, work->actpack->still->setup, 4);
+            return;
+        }
+    }
+    {
+        short yaw_inc;
+        if (FreeCam_ConsumeAimYawInc(&yaw_inc))
+        {
+            /* OTS active: apply right-stick yaw to body, then either trigger
+             * strafe-walk (rungun) or hold still-aim pose. The rungun helper
+             * is patched to suppress its body-rotation and CROSS-exit while
+             * FreeCam_IsAimActive() so strafe direction is decoupled from
+             * body heading. Fire still works because sub_80057BF0 runs
+             * independently of this helper. */
+            if (yaw_inc != 0)
+            {
+                work->control.turn.vy = (short)((work->control.turn.vy + yaw_inc) & 0x0FFF);
+            }
+            if (gSnaMoveDir_800ABBA4 >= 0)
+            {
+                sna_start_anim_8004E1F4(work, &sna_anim_rungun_begin_80056BDC);
+            }
+            else
+            {
+                SetAction_8004E22C(work, work->actpack->still->setup, 4);
+            }
+            return;
+        }
+    }
+
     if (gSnaMoveDir_800ABBA4 < 0)
     {
         SetAction_8004E22C(work, work->actpack->still->setup, 4);
@@ -5778,7 +5819,11 @@ void sna_anim_rungun_helper_80057844(SnaInitWork *work, int time)
         return;
     }
 
-    if (gSnaMoveDir_800ABBA4 < 0 || (!(work->field_920_tbl & 8) && !(work->field_9B0_pad_ptr->status & PAD_CROSS)))
+    /* Exit conditions: left stick neutral (always), OR no-CROSS for 5
+     * frames (vanilla rungun semantics, but suppressed when OTS aim is
+     * active so the player can strafe without holding fire). */
+    if (gSnaMoveDir_800ABBA4 < 0 ||
+        (!(work->field_920_tbl & 8) && !(work->field_9B0_pad_ptr->status & PAD_CROSS) && !FreeCam_IsAimActive()))
     {
         if (++work->field_A3A >= 5)
         {
@@ -5794,17 +5839,32 @@ void sna_anim_rungun_helper_80057844(SnaInitWork *work, int time)
 
     if (!sna_sub_8004E358(work, SNA_FLAG2_UNK5))
     {
-        if (gSnaMoveDir_800ABBA4 < 0)
+        if (FreeCam_IsAimActive())
         {
-            angle = work->control.turn.vy;
+            /* OTS strafe: keep body locked, let right stick yaw it. The
+             * translation comes from gSnaMoveDir via the engine's step
+             * calc (pVec_800ABBCC), independent of turn.vy. */
+            short yaw_inc;
+            if (FreeCam_ConsumeAimYawInc(&yaw_inc) && yaw_inc != 0)
+            {
+                work->control.turn.vy = (short)((work->control.turn.vy + yaw_inc) & 0x0FFF);
+            }
+            sub_8004EA50(work, work->control.turn.vy);
         }
         else
         {
-            angle = sub_8004E4C0(work, gSnaMoveDir_800ABBA4);
-        }
+            if (gSnaMoveDir_800ABBA4 < 0)
+            {
+                angle = work->control.turn.vy;
+            }
+            else
+            {
+                angle = sub_8004E4C0(work, gSnaMoveDir_800ABBA4);
+            }
 
-        work->control.turn.vy = angle;
-        sub_8004EA50(work, angle);
+            work->control.turn.vy = angle;
+            sub_8004EA50(work, angle);
+        }
     }
     else if (!(work->field_9B0_pad_ptr->status & (PAD_DOWN | PAD_UP)))
     {
@@ -5826,34 +5886,43 @@ void sna_auto_aim_800579A0(SnaInitWork *work)
     int out_y;
     int diff;
 
-    // loops enemies and finds candidate to aim at, returns angle to auto turn/aim to
-    // melee also uses this in a different func
-    GM_GetHomingTarget2(&work->body.objs->objs[6].world,
-                        work->control.rot.vy, // input snake horizontal facing angle
-                        &out_y, &out_x, work->control.map->index,
-                        work->field_890_autoaim_max_dist,
-                        work->field_892_autoaim_min_angle); // min angle to activate auto aim
-
-    // ?
-    unk = work->adjust[2].vx;
-    diff = unk - out_x;
-    if (diff >= 65)
+    if (FreeCam_IsAimActive())
     {
-        out_x = unk - 64;
+        /* OTS free-look: drive bone IK pitch from the user's right-stick Y
+         * (g_ots_pitch). No homing-target lookup, no auto-snap to enemy
+         * heading. The cam's vertical tilt and the gun's vertical aim now
+         * share a single source of truth, so bullets follow the cam. */
+        out_x = (int)FreeCam_GetAimPitch();
+        out_y = -1; /* no homing target during OTS */
     }
-    else if (diff < -64)
+    else
     {
-        out_x = unk + 64;
+        /* Vanilla auto-aim: find homing target, smooth pitch toward it. */
+        GM_GetHomingTarget2(&work->body.objs->objs[6].world,
+                            work->control.rot.vy, // input snake horizontal facing angle
+                            &out_y, &out_x, work->control.map->index,
+                            work->field_890_autoaim_max_dist,
+                            work->field_892_autoaim_min_angle); // min angle to activate auto aim
+
+        unk = work->adjust[2].vx;
+        diff = unk - out_x;
+        if (diff >= 65)
+        {
+            out_x = unk - 64;
+        }
+        else if (diff < -64)
+        {
+            out_x = unk + 64;
+        }
     }
 
-    // ?
     out_x_copy = out_x;
     work->adjust[2].vx = out_x;
     work->adjust[6].vx = out_x;
     snake_not_moving = gSnaMoveDir_800ABBA4 < 0;
     work->adjust[7].vx = 3 * out_x_copy / 2; // maybe aim gun/head up/down??
 
-    if (snake_not_moving && out_y >= 0) // if not moving, set snake turn angle
+    if (snake_not_moving && out_y >= 0) // if not moving and a homing target exists, set snake turn angle
     {
         work->control.turn.vy = out_y;
     }
@@ -5905,7 +5974,7 @@ void sna_80057A90(SnaInitWork *work, int time)
 
     if (work->body.time2 != 0)
     {
-        if (!(work->field_9B0_pad_ptr->status & PAD_SQUARE))
+        if (!(work->field_9B0_pad_ptr->status & PAD_L1))
         {
             GM_ClearPlayerStatusFlag(PLAYER_ATTACK);
             sna_8004E260(work, 0, 4, 0);
@@ -5971,7 +6040,7 @@ void sub_80057BF0(SnaInitWork *work, int time)
 
     trg = 1;
 
-    if ( (temp_s3 & 1) ? (status & PAD_SQUARE) : (release & PAD_SQUARE) )
+    if ( (temp_s3 & 1) ? (status & PAD_R1) : (release & PAD_R1) )
     {
         var_s2 = 1;
     }
@@ -6054,7 +6123,11 @@ void sub_80057BF0(SnaInitWork *work, int time)
         break;
     }
 
-    if ( (status & 0x80) == 0 )
+    /* 0x80 is PAD_SQUARE — vanilla used the literal here instead of the
+     * symbol, so this site was missed when remapping aim to L1. Clears
+     * PLAYER_ATTACK after 5 frames of aim-button-not-held, which was
+     * causing aim to loop-restart while L1 is held. */
+    if ( (status & PAD_L1) == 0 )
     {
         if ( (++work->field_926 > 4) || (temp_s3 & 1) )
         {
@@ -6117,7 +6190,7 @@ void sna_anim_psg1_helper_80057FD4(SnaInitWork* work, int time)
         return;
     }
 
-    if ( (work->field_9B0_pad_ptr->release & PAD_SQUARE) &&
+    if ( (work->field_9B0_pad_ptr->release & PAD_R1) &&
          !(GM_GameStatus & STATE_PADRELEASE) &&
          !GM_CheckPlayerStatusFlag(PLAYER_PAD_OFF) &&
          (DG_UnDrawFrameCount == 0) )
@@ -6244,7 +6317,7 @@ STATIC void OP_ShootStinger(SnaInitWork *work, int time)
 
     trg = 1; // 1 = WEAPON_TAKE
 
-    if ((work->field_9B0_pad_ptr->release & PAD_SQUARE) &&
+    if ((work->field_9B0_pad_ptr->release & PAD_R1) &&
         !(GM_GameStatus & STATE_PADRELEASE) &&
         !GM_CheckPlayerStatusFlag(PLAYER_PAD_OFF))
     {
@@ -6316,7 +6389,7 @@ void sna_anim_grenade_80058470(SnaInitWork *work, int time)
 
         break;
     case 1:
-        if (!(work->field_9B0_pad_ptr->status & PAD_SQUARE) && (DG_UnDrawFrameCount == 0))
+        if (!(work->field_9B0_pad_ptr->status & PAD_R1) && (DG_UnDrawFrameCount == 0))
         {
             sna_8004E260(work, work->actpack->attack->shoot, 1, bits);
             work->field_924 = 2;
@@ -6334,7 +6407,7 @@ void sna_anim_grenade_80058470(SnaInitWork *work, int time)
     case 3:
         res = 0;
 
-        if ((uVar2 > 11) && (work->field_9B0_pad_ptr->status & PAD_SQUARE))
+        if ((uVar2 > 11) && (work->field_9B0_pad_ptr->status & PAD_R1))
         {
             work->field_910 = 0;
             return;
@@ -6366,7 +6439,7 @@ void sub_80058644(SnaInitWork *work, int time)
             sub_8004EEB0(work);
         }
 
-        if ((work->field_9B0_pad_ptr->status & PAD_SQUARE) == 0 && iVar1 == 0 && DG_UnDrawFrameCount == 0)
+        if ((work->field_9B0_pad_ptr->status & PAD_R1) == 0 && iVar1 == 0 && DG_UnDrawFrameCount == 0)
         {
             iVar1 = sub_8004E5E8(work, 0x80);
             if (iVar1 == 1)
@@ -6416,7 +6489,7 @@ void sna_anim_claymore_helper_80058780(SnaInitWork *work, int time)
         DG_VisiblePrim(work->field_92C);
         DG_PutPrim(&work->field_92C->world);
 
-        if ( !(work->field_9B0_pad_ptr->status & PAD_SQUARE) && (DG_UnDrawFrameCount == 0) )
+        if ( !(work->field_9B0_pad_ptr->status & PAD_R1) && (DG_UnDrawFrameCount == 0) )
         {
             var_s1 = sub_8004E5E8(work, 0x40);
 
@@ -8050,6 +8123,41 @@ static void Act(SnaInitWork *work)
         work->control.step.vx *= -1;
         work->control.step.vz *= -1;
         sna_clear_flags2_8004E344(work, SNA_FLAG2_UNK1);
+    }
+
+    /* OTS strafe: GM_ActMotion writes step in body-forward direction (anim
+     * root motion rotated by body heading). In OTS the body is locked to
+     * cam direction, so without this, left-stick LEFT/RIGHT still walks
+     * forward. Redirect the horizontal step to point along gSnaMoveDir
+     * (left-stick world direction) while preserving the anim's magnitude.
+     * When the stick is neutral, zero the step so the 5-frame rungun-exit
+     * delay doesn't coast Snake forward via the still-playing run anim. */
+    if (FreeCam_IsAimActive())
+    {
+        if (gSnaMoveDir_800ABBA4 >= 0)
+        {
+            SVECTOR horiz_step;
+            int     speed;
+
+            horiz_step.vx  = work->control.step.vx;
+            horiz_step.vy  = 0;
+            horiz_step.vz  = work->control.step.vz;
+            horiz_step.pad = 0;
+            speed = GV_VecLen3(&horiz_step);
+
+            if (speed > 0)
+            {
+                int sin_d = rsin(gSnaMoveDir_800ABBA4);
+                int cos_d = rcos(gSnaMoveDir_800ABBA4);
+                work->control.step.vx = (short)((sin_d * speed) >> 12);
+                work->control.step.vz = (short)((cos_d * speed) >> 12);
+            }
+        }
+        else
+        {
+            work->control.step.vx = 0;
+            work->control.step.vz = 0;
+        }
     }
 
     sna_act_helper2_8005AD10(work);

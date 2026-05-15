@@ -9,4 +9,24 @@ int  FreeCam_IsActive(void);
 void FreeCam_Tick(void);
 short FreeCam_GetYaw(void);
 
+/* OTS free-look entry snap. Returns 1 ONCE on the rising edge of OTS aim,
+ * populates *out_heading with the absolute heading Snake should be set to
+ * (cam-look direction). Returns 0 on all other frames. Caller writes
+ * out_heading to work->control.turn.vy. */
+int FreeCam_ConsumeAimSnap(short *out_heading);
+
+/* OTS free-look per-frame yaw nudge. Returns 1 each frame OTS is active,
+ * populates *out_inc with the signed RX-derived delta (libgte units) to
+ * ADD to Snake's current turn.vy. Resets to 0 after consume so a single
+ * frame's input is applied exactly once. */
+int FreeCam_ConsumeAimYawInc(short *out_inc);
+
+/* Non-consuming check: 1 if OTS aim is engaged this frame. Used by
+ * sna_init.c's rungun helper to gate strafe-mode behavior. */
+int FreeCam_IsAimActive(void);
+
+/* Non-consuming read of the accumulated cam pitch (RY-derived).
+ * Used by sna_auto_aim to drive bone IK pitch (vertical aim). */
+short FreeCam_GetAimPitch(void);
+
 #endif

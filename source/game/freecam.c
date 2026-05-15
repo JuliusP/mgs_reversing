@@ -23,25 +23,70 @@
 #define OTS_LOOK_FORWARD    8000   /* far-ahead target along Snake's facing */
 #define OTS_LOOK_HEIGHT     700    /* aim point above Snake, matches eye for level look */
 
+/* OTS free-look tuning. Shifts match the orbit cam's live values so feel
+ * is consistent between modes. Pitch limit ~67.5° each way (0x300 of the
+ * 0x1000 libgte full circle); the look-at is computed by rotating the
+ * forward vector by g_ots_pitch directly, so the cam tilts at the same
+ * angle the bone IK uses for the gun. */
+#define OTS_YAW_SHIFT     1
+#define OTS_PITCH_SHIFT   2
+#define OTS_PITCH_LIMIT   0x300
+
 extern UnkCameraStruct2 gUnkCameraStruct2_800B7868;
 extern short            area_name;
 
 static const FreeCamRoomConfig *g_current_room = NULL;
 static short g_yaw      = 0;
 static short g_pitch    = 0x0200;
-static int   g_distance = 3200;
+static int   g_distance = 3800;
+
+/* OTS free-look state.
+ *  - g_ots_active        : "this frame" flag consumed by the yaw-inc getter;
+ *                          previous frame's value is captured into a local in
+ *                          FreeCam_Tick for edge detection.
+ *  - g_ots_snap_pending  : one-shot flag set on rising edge, cleared by the
+ *                          first ConsumeAimSnap call.
+ *  - g_ots_snap_heading  : the snap target captured on rising edge.
+ *  - g_ots_yaw_inc       : this frame's RX-derived signed yaw nudge.
+ *                          Recomputed each frame in FreeCam_Tick from the live
+ *                          stick reading; reset to 0 by ConsumeAimYawInc so
+ *                          one frame's input is applied exactly once.
+ *  - g_ots_pitch         : accumulated RY-derived cam pitch; clamped to
+ *                          [-OTS_PITCH_LIMIT, +OTS_PITCH_LIMIT]; cam-only. */
+static char  g_ots_active       = 0;
+static char  g_ots_snap_pending = 0;
+static short g_ots_snap_heading = 0;
+static short g_ots_yaw_inc      = 0;
+static short g_ots_pitch        = 0;
 
 void FreeCam_Init(void)
 {
     g_current_room = NULL;
     g_yaw      = 0;
     g_pitch    = 0x0200;
-    g_distance = 3200;
+    g_distance = 3800;
+
+    g_ots_active       = 0;
+    g_ots_snap_pending = 0;
+    g_ots_snap_heading = 0;
+    g_ots_yaw_inc      = 0;
+    g_ots_pitch        = 0;
 }
 
 void FreeCam_OnStageChange(void)
 {
+    /* Called every frame from camera.c, not just on actual stage transitions —
+     * so DO NOT clear OTS state unconditionally. Doing so makes the rising-
+     * edge detector in FreeCam_Tick fire on every frame, which spams the
+     * one-shot snap and locks Snake's heading to (g_yaw + 2048).
+     * Only clear when transitioning OUT of a freecam stage. */
+    const FreeCamRoomConfig *prev = g_current_room;
     g_current_room = FreeCam_LookupRoom((int)area_name);
+    if (g_current_room == NULL && prev != NULL)
+    {
+        g_ots_active       = 0;
+        g_ots_snap_pending = 0;
+    }
 }
 
 int FreeCam_IsActive(void)
@@ -66,17 +111,67 @@ void FreeCam_Tick(void)
     if (room == NULL) { return; }
 
     pad = &GV_PadData[0];
-    /* "Shoot mode" = Square held with a weapon equipped. Mirrors sna_8005009C's
-     * aim branch in sna_init.c so the camera engages exactly when Snake's
-     * weapon animation does. */
-    ots_active = ((pad->status & PAD_SQUARE) != 0) && (GM_CurrentWeaponId != WP_None);
+    {
+        int was_active;
+        /* "Shoot mode" = Square held with a weapon equipped. Mirrors sna_8005009C's
+         * aim branch in sna_init.c so the camera engages exactly when Snake's
+         * weapon animation does. */
+        was_active = (int)g_ots_active;
+        ots_active = ((pad->status & PAD_L1) != 0) && (GM_CurrentWeaponId != WP_None);
+        g_ots_active = (char)ots_active;
+
+        /* Rising edge: arm the one-shot snap to camera direction.
+         * (g_yaw + 2048) is the inverse of the OTS pad_origin relation;
+         * it converts cam-yaw into Snake-facing so the OTS cam ends up
+         * roughly where the orbit cam was for visual continuity. */
+        if (!was_active && ots_active)
+        {
+            g_ots_snap_pending = 1;
+            g_ots_snap_heading = (short)((g_yaw + 2048) & 0x0FFF);
+            g_ots_pitch        = 0;
+        }
+
+        /* Falling edge: orbit cam returns already behind Snake's new facing.
+         * +2048 matches the engine pad-dir convention used in the orbit branch. */
+        if (was_active && !ots_active)
+        {
+            g_yaw = (short)((GM_PlayerHeading + 2048) & 0x0FFF);
+        }
+
+        /* Compute this frame's RX-derived yaw nudge and accumulate RY into
+         * pitch. yaw_inc is *recomputed* each frame (not accumulated) so
+         * sna_init.c's gate can ADD it to turn.vy rather than overwrite,
+         * which is what keeps vanilla aim-turn working without snap-back.
+         * Gate on pad->analog: right_dx/right_dy hold stale values when
+         * analog mode is off. */
+        if (ots_active)
+        {
+            int rx = 0, ry = 0;
+            if (pad->analog > 0)
+            {
+                rx = (int)pad->right_dx - 0x80;
+                ry = (int)pad->right_dy - 0x80;
+                if (rx > -8 && rx < 8) { rx = 0; }
+                if (ry > -8 && ry < 8) { ry = 0; }
+            }
+            g_ots_yaw_inc = (short)-(rx >> OTS_YAW_SHIFT);
+            g_ots_pitch   = (short)(g_ots_pitch + (ry >> OTS_PITCH_SHIFT));
+            if (g_ots_pitch < -OTS_PITCH_LIMIT) { g_ots_pitch = -OTS_PITCH_LIMIT; }
+            if (g_ots_pitch >  OTS_PITCH_LIMIT) { g_ots_pitch =  OTS_PITCH_LIMIT; }
+        }
+    }
 
     if (ots_active)
     {
         int sin_h = rsin(GM_PlayerHeading);
         int cos_h = rcos(GM_PlayerHeading);
+        int sin_p = rsin(g_ots_pitch);
+        int cos_p = rcos(g_ots_pitch);
+        int horiz_d;
+        int vert_d;
 
-        /* Eye: lateral right + slight behind, raised. */
+        /* Eye: lateral right + slight behind, raised. Pitch doesn't move
+         * the eye — only rotates the look-at direction around it. */
         eye.vx = GM_PlayerPosition.vx
                + (short)((cos_h * OTS_SHOULDER_DIST) >> 12)
                - (short)((sin_h * OTS_BEHIND_DIST)   >> 12);
@@ -86,10 +181,17 @@ void FreeCam_Tick(void)
         eye.vy = GM_PlayerPosition.vy + OTS_EYE_HEIGHT;
         eye.pad = 0;
 
-        /* Look-at: far ahead of Snake along his facing. */
-        center.vx = GM_PlayerPosition.vx + (short)((sin_h * OTS_LOOK_FORWARD) >> 12);
-        center.vz = GM_PlayerPosition.vz + (short)((cos_h * OTS_LOOK_FORWARD) >> 12);
-        center.vy = GM_PlayerPosition.vy + OTS_LOOK_HEIGHT;
+        /* Look-at: D units ahead of eye, rotated by yaw + pitch. cos_p
+         * shrinks the horizontal projection when pitched; sin_p drives the
+         * vertical. Sign: positive g_ots_pitch (RY-down) tilts the look
+         * vector down (subtract from vy). Matches the bone IK sign so the
+         * cam and gun share one notion of "pitch". */
+        horiz_d = (cos_p * OTS_LOOK_FORWARD) >> 12;
+        vert_d  = (sin_p * OTS_LOOK_FORWARD) >> 12;
+
+        center.vx = eye.vx + (short)((sin_h * horiz_d) >> 12);
+        center.vz = eye.vz + (short)((cos_h * horiz_d) >> 12);
+        center.vy = eye.vy - (short)vert_d;
         center.pad = 0;
 
         /* Eye is behind Snake along his heading; cam-forward = heading.
@@ -106,7 +208,10 @@ void FreeCam_Tick(void)
          * integrate into g_yaw (wrap) and g_pitch (clamped to room range).
          * Sensitivity shifts: >> 1 yaw, >> 2 pitch (yaw twice as responsive).
          * Yaw negated so stick-right rotates cam right; pitch left + (stick-up
-         * tilts cam down, MGSV / inverted-Y convention). */
+         * tilts cam down, MGSV / inverted-Y convention).
+         * Gate on pad->analog: right_dx/right_dy hold stale values when
+         * analog mode is off — cam would drift around Snake otherwise. */
+        if (pad->analog > 0)
         {
             int rx = (int)pad->right_dx - 0x80;
             int ry = (int)pad->right_dy - 0x80;
@@ -151,4 +256,30 @@ void FreeCam_Tick(void)
     gUnkCameraStruct2_800B7868.zoom   = 320;
 
     GV_OriginPadSystem(pad_origin);
+}
+
+int FreeCam_ConsumeAimSnap(short *out_heading)
+{
+    if (!g_ots_snap_pending) { return 0; }
+    *out_heading = g_ots_snap_heading;
+    g_ots_snap_pending = 0;
+    return 1;
+}
+
+int FreeCam_ConsumeAimYawInc(short *out_inc)
+{
+    if (!g_ots_active) { return 0; }
+    *out_inc = g_ots_yaw_inc;
+    g_ots_yaw_inc = 0;
+    return 1;
+}
+
+int FreeCam_IsAimActive(void)
+{
+    return (int)g_ots_active;
+}
+
+short FreeCam_GetAimPitch(void)
+{
+    return g_ots_pitch;
 }
