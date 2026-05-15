@@ -8124,24 +8124,34 @@ static void Act(SnaInitWork *work)
      * root motion rotated by body heading). In OTS the body is locked to
      * cam direction, so without this, left-stick LEFT/RIGHT still walks
      * forward. Redirect the horizontal step to point along gSnaMoveDir
-     * (left-stick world direction) while preserving the anim's magnitude. */
-    if (FreeCam_IsAimActive() && gSnaMoveDir_800ABBA4 >= 0)
+     * (left-stick world direction) while preserving the anim's magnitude.
+     * When the stick is neutral, zero the step so the 5-frame rungun-exit
+     * delay doesn't coast Snake forward via the still-playing run anim. */
+    if (FreeCam_IsAimActive())
     {
-        SVECTOR horiz_step;
-        int     speed;
-
-        horiz_step.vx  = work->control.step.vx;
-        horiz_step.vy  = 0;
-        horiz_step.vz  = work->control.step.vz;
-        horiz_step.pad = 0;
-        speed = GV_VecLen3(&horiz_step);
-
-        if (speed > 0)
+        if (gSnaMoveDir_800ABBA4 >= 0)
         {
-            int sin_d = rsin(gSnaMoveDir_800ABBA4);
-            int cos_d = rcos(gSnaMoveDir_800ABBA4);
-            work->control.step.vx = (short)((sin_d * speed) >> 12);
-            work->control.step.vz = (short)((cos_d * speed) >> 12);
+            SVECTOR horiz_step;
+            int     speed;
+
+            horiz_step.vx  = work->control.step.vx;
+            horiz_step.vy  = 0;
+            horiz_step.vz  = work->control.step.vz;
+            horiz_step.pad = 0;
+            speed = GV_VecLen3(&horiz_step);
+
+            if (speed > 0)
+            {
+                int sin_d = rsin(gSnaMoveDir_800ABBA4);
+                int cos_d = rcos(gSnaMoveDir_800ABBA4);
+                work->control.step.vx = (short)((sin_d * speed) >> 12);
+                work->control.step.vz = (short)((cos_d * speed) >> 12);
+            }
+        }
+        else
+        {
+            work->control.step.vx = 0;
+            work->control.step.vz = 0;
         }
     }
 
