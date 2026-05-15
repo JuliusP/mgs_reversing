@@ -268,3 +268,8 @@ int FreeCam_IsAimActive(void)
 {
     return (int)g_ots_active;
 }
+
+short FreeCam_GetAimPitch(void)
+{
+    return g_ots_pitch;
+}

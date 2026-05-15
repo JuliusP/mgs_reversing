@@ -5886,38 +5886,43 @@ void sna_auto_aim_800579A0(SnaInitWork *work)
     int out_y;
     int diff;
 
-    // loops enemies and finds candidate to aim at, returns angle to auto turn/aim to
-    // melee also uses this in a different func
-    GM_GetHomingTarget2(&work->body.objs->objs[6].world,
-                        work->control.rot.vy, // input snake horizontal facing angle
-                        &out_y, &out_x, work->control.map->index,
-                        work->field_890_autoaim_max_dist,
-                        work->field_892_autoaim_min_angle); // min angle to activate auto aim
-
-    // ?
-    unk = work->adjust[2].vx;
-    diff = unk - out_x;
-    if (diff >= 65)
+    if (FreeCam_IsAimActive())
     {
-        out_x = unk - 64;
+        /* OTS free-look: drive bone IK pitch from the user's right-stick Y
+         * (g_ots_pitch). No homing-target lookup, no auto-snap to enemy
+         * heading. The cam's vertical tilt and the gun's vertical aim now
+         * share a single source of truth, so bullets follow the cam. */
+        out_x = (int)FreeCam_GetAimPitch();
+        out_y = -1; /* no homing target during OTS */
     }
-    else if (diff < -64)
+    else
     {
-        out_x = unk + 64;
+        /* Vanilla auto-aim: find homing target, smooth pitch toward it. */
+        GM_GetHomingTarget2(&work->body.objs->objs[6].world,
+                            work->control.rot.vy, // input snake horizontal facing angle
+                            &out_y, &out_x, work->control.map->index,
+                            work->field_890_autoaim_max_dist,
+                            work->field_892_autoaim_min_angle); // min angle to activate auto aim
+
+        unk = work->adjust[2].vx;
+        diff = unk - out_x;
+        if (diff >= 65)
+        {
+            out_x = unk - 64;
+        }
+        else if (diff < -64)
+        {
+            out_x = unk + 64;
+        }
     }
 
-    // ?
     out_x_copy = out_x;
     work->adjust[2].vx = out_x;
     work->adjust[6].vx = out_x;
     snake_not_moving = gSnaMoveDir_800ABBA4 < 0;
     work->adjust[7].vx = 3 * out_x_copy / 2; // maybe aim gun/head up/down??
 
-    /* Suppress the body snap-to-enemy when OTS free-look is active so the
-     * player's right-stick yaw_inc isn't overwritten every frame. The bone
-     * adjusts above (adjust[2/6/7]) still happen, so the gun model retains
-     * its vertical aim-assist toward enemies. */
-    if (snake_not_moving && out_y >= 0 && !FreeCam_IsAimActive()) // if not moving, set snake turn angle
+    if (snake_not_moving && out_y >= 0) // if not moving and a homing target exists, set snake turn angle
     {
         work->control.turn.vy = out_y;
     }

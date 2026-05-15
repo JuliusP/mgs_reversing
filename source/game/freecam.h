@@ -25,4 +25,8 @@ int FreeCam_ConsumeAimYawInc(short *out_inc);
  * sna_init.c's rungun helper to gate strafe-mode behavior. */
 int FreeCam_IsAimActive(void);
 
+/* Non-consuming read of the accumulated cam pitch (RY-derived).
+ * Used by sna_auto_aim to drive bone IK pitch (vertical aim). */
+short FreeCam_GetAimPitch(void);
+
 #endif
