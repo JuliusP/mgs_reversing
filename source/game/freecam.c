@@ -75,9 +75,18 @@ void FreeCam_Init(void)
 
 void FreeCam_OnStageChange(void)
 {
+    /* Called every frame from camera.c, not just on actual stage transitions —
+     * so DO NOT clear OTS state unconditionally. Doing so makes the rising-
+     * edge detector in FreeCam_Tick fire on every frame, which spams the
+     * one-shot snap and locks Snake's heading to (g_yaw + 2048).
+     * Only clear when transitioning OUT of a freecam stage. */
+    const FreeCamRoomConfig *prev = g_current_room;
     g_current_room = FreeCam_LookupRoom((int)area_name);
-    g_ots_active       = 0;
-    g_ots_snap_pending = 0;
+    if (g_current_room == NULL && prev != NULL)
+    {
+        g_ots_active       = 0;
+        g_ots_snap_pending = 0;
+    }
 }
 
 int FreeCam_IsActive(void)
