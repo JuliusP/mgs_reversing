@@ -8272,6 +8272,14 @@ static void Act(SnaInitWork *work)
     GM_PlayerPosition = vec = work->control.mov;
     GM_PlayerHeading = (short)work->control.turn.vy;
 
+    /* Publish the chest-bone (bone 6) world position as the OTS cam anchor.
+     * Same bone whose pitch we drive via adjust[6].vx in sna_auto_aim, so the
+     * cam and the gun pivot around a single shared point. */
+    GM_PlayerCamAnchor.vx = (short)work->body.objs->objs[6].world.t[0];
+    GM_PlayerCamAnchor.vy = (short)work->body.objs->objs[6].world.t[1];
+    GM_PlayerCamAnchor.vz = (short)work->body.objs->objs[6].world.t[2];
+    GM_PlayerCamAnchor.pad = 0;
+
     if ( sna_check_flags1_8004E31C(work, SNA_FLAG1_UNK16) )
     {
         GM_PlayerPosition = work->field_A60;

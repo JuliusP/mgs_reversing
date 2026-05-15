@@ -11,26 +11,44 @@
 #include <stddef.h>
 
 /* Over-the-shoulder placement (active while Snake is aiming a weapon).
- * The OTS path is a direct translation in world space, not a spherical orbit:
- *   eye    = Snake + right * SHOULDER_DIST + up * EYE_HEIGHT - forward * BEHIND_DIST
- *   center = Snake + forward * LOOK_FORWARD + up * LOOK_HEIGHT
- * Look-at sits far ahead so the camera looks where Snake aims, not at Snake.
- * NOTE: empirically +Y is UP in this engine (cam was previously rendered
- * underneath Snake when subtracting heights — see commit history). */
-#define OTS_SHOULDER_DIST  (-500)  /* negative = Snake's right side under this engine's axes */
-#define OTS_BEHIND_DIST     1500   /* further back so Snake's shoulder sits in frame */
-#define OTS_EYE_HEIGHT      700    /* eye above Snake (added to vy) */
-#define OTS_LOOK_FORWARD    8000   /* far-ahead target along Snake's facing */
-#define OTS_LOOK_HEIGHT     700    /* aim point above Snake, matches eye for level look */
+ *
+ * Hockey-stick rig: a rigid stick from the chest-bone anchor (bone 6,
+ * published as GM_PlayerCamAnchor) to the cam eye. The stick has a back
+ * handle (RIG_BACK) and a blade at the cam end (RIG_RIGHT lateral +
+ * RIG_UP vertical). The whole stick rotates around the anchor:
+ *   - yaw   = Snake's heading (rotates the stick around world +Y)
+ *   - pitch = g_ots_pitch     (rotates the stick around the body's right axis)
+ *
+ * Because pitch is around the right axis, the lateral RIG_RIGHT offset is
+ * preserved at all pitch angles (rotation around X doesn't move X). RIG_UP
+ * and RIG_BACK trade with each other as the stick swings: pitch+ raises the
+ * eye and pulls it forward (cam looks down), pitch- drops the eye and pulls
+ * it back (cam looks up). The look-at point rotates by the same pitch, so
+ * the cam tilts in lockstep with the gun bone IK (FreeCam_GetAimPitch →
+ * adjust[2/6/7].vx in sna_auto_aim).
+ *
+ *   eye    = anchor + yaw_rotate( (RIG_RIGHT, rig_up, -rig_back) )
+ *   center = eye    + yaw_rotate( (0,        -look_down, look_forward) )
+ *   rig_up    = RIG_UP*cos_p + RIG_BACK*sin_p
+ *   rig_back  = RIG_BACK*cos_p - RIG_UP*sin_p
+ *   look_down = LOOK_FORWARD*sin_p
+ *   look_forward = LOOK_FORWARD*cos_p
+ *
+ * Sign: positive g_ots_pitch = stick-down on RY = cam looks down (matches
+ * the bone IK convention so bullets follow the cam). +Y is UP in this engine. */
+#define OTS_RIG_RIGHT      (-500)  /* lateral offset (negative = right under engine axes) */
+#define OTS_RIG_UP           200   /* eye above the chest anchor (anchor IS at chest) */
+#define OTS_RIG_BACK        1500   /* eye behind anchor along Snake's facing */
+#define OTS_LOOK_FORWARD    8000   /* look-at distance ahead of eye */
 
 /* OTS free-look tuning. Shifts match the orbit cam's live values so feel
- * is consistent between modes. Pitch limit ~67.5° each way (0x300 of the
- * 0x1000 libgte full circle); the look-at is computed by rotating the
- * forward vector by g_ots_pitch directly, so the cam tilts at the same
- * angle the bone IK uses for the gun. */
+ * is consistent between modes. Pitch limit reduced from 0x300 to 0x180 (~34°)
+ * for the orbit rig: at full pitch up, eye drops ~670 below the chest anchor
+ * (~30 above the floor in normal rooms). Larger ranges put the cam through
+ * the floor and the bounds clamp would mask it. */
 #define OTS_YAW_SHIFT     1
 #define OTS_PITCH_SHIFT   2
-#define OTS_PITCH_LIMIT   0x300
+#define OTS_PITCH_LIMIT   0x180
 
 extern UnkCameraStruct2 gUnkCameraStruct2_800B7868;
 extern short            area_name;
@@ -167,31 +185,37 @@ void FreeCam_Tick(void)
         int cos_h = rcos(GM_PlayerHeading);
         int sin_p = rsin(g_ots_pitch);
         int cos_p = rcos(g_ots_pitch);
-        int horiz_d;
-        int vert_d;
+        int rig_up;
+        int rig_back;
+        int look_down;
+        int look_forward;
 
-        /* Eye: lateral right + slight behind, raised. Pitch doesn't move
-         * the eye — only rotates the look-at direction around it. */
-        eye.vx = GM_PlayerPosition.vx
-               + (short)((cos_h * OTS_SHOULDER_DIST) >> 12)
-               - (short)((sin_h * OTS_BEHIND_DIST)   >> 12);
-        eye.vz = GM_PlayerPosition.vz
-               - (short)((sin_h * OTS_SHOULDER_DIST) >> 12)
-               - (short)((cos_h * OTS_BEHIND_DIST)   >> 12);
-        eye.vy = GM_PlayerPosition.vy + OTS_EYE_HEIGHT;
+        /* Pitch-rotated rig in body-local space. RIG_RIGHT is along the pitch
+         * axis (X) so it is invariant; RIG_UP and RIG_BACK rotate around it.
+         * Sign: positive pitch → eye rises (rig_up grows) and pulls forward
+         * (rig_back shrinks), look-at drops (look_down grows). */
+        rig_up       = ((OTS_RIG_UP   * cos_p) + (OTS_RIG_BACK * sin_p)) >> 12;
+        rig_back     = ((OTS_RIG_BACK * cos_p) - (OTS_RIG_UP   * sin_p)) >> 12;
+        look_down    = (OTS_LOOK_FORWARD * sin_p) >> 12;
+        look_forward = (OTS_LOOK_FORWARD * cos_p) >> 12;
+
+        /* Apply yaw (Snake's heading) to the body-local rig and place the
+         * eye relative to the chest-bone anchor. Anchor is published from
+         * sna_init.c::sna_init_main_logic_800596FC each frame. */
+        eye.vx = GM_PlayerCamAnchor.vx
+               + (short)((cos_h * OTS_RIG_RIGHT) >> 12)
+               - (short)((sin_h * rig_back)      >> 12);
+        eye.vz = GM_PlayerCamAnchor.vz
+               - (short)((sin_h * OTS_RIG_RIGHT) >> 12)
+               - (short)((cos_h * rig_back)      >> 12);
+        eye.vy = GM_PlayerCamAnchor.vy + (short)rig_up;
         eye.pad = 0;
 
-        /* Look-at: D units ahead of eye, rotated by yaw + pitch. cos_p
-         * shrinks the horizontal projection when pitched; sin_p drives the
-         * vertical. Sign: positive g_ots_pitch (RY-down) tilts the look
-         * vector down (subtract from vy). Matches the bone IK sign so the
-         * cam and gun share one notion of "pitch". */
-        horiz_d = (cos_p * OTS_LOOK_FORWARD) >> 12;
-        vert_d  = (sin_p * OTS_LOOK_FORWARD) >> 12;
-
-        center.vx = eye.vx + (short)((sin_h * horiz_d) >> 12);
-        center.vz = eye.vz + (short)((cos_h * horiz_d) >> 12);
-        center.vy = eye.vy - (short)vert_d;
+        /* Look-at: forward direction rotated by the same pitch, projected
+         * onto the world via yaw, then displaced from the eye. */
+        center.vx = eye.vx + (short)((sin_h * look_forward) >> 12);
+        center.vz = eye.vz + (short)((cos_h * look_forward) >> 12);
+        center.vy = eye.vy - (short)look_down;
         center.pad = 0;
 
         /* Eye is behind Snake along his heading; cam-forward = heading.

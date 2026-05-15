@@ -306,6 +306,7 @@ extern int      GM_Photocode;
 extern int      GM_PlayerMap;
 extern SVECTOR  GM_PlayerPosition;
 extern short    GM_PlayerHeading;
+extern SVECTOR  GM_PlayerCamAnchor;
 extern int      GM_AlertLevel;
 extern int      dword_800ABA1C;
 extern OBJECT  *GM_PlayerBody;

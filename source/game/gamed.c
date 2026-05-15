@@ -69,6 +69,7 @@ int          SECTION(".sbss") dword_800ABA08;
 int          SECTION(".sbss") GM_PlayerMap;
 SVECTOR      SECTION(".sbss") GM_PlayerPosition;
 short        SECTION(".sbss") GM_PlayerHeading;
+SVECTOR      SECTION(".sbss") GM_PlayerCamAnchor;
 int          SECTION(".sbss") GM_AlertLevel;
 int          SECTION(".sbss") dword_800ABA1C;
 OBJECT      *SECTION(".sbss") GM_PlayerBody;
