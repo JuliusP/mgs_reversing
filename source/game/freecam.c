@@ -23,14 +23,13 @@
 #define OTS_LOOK_FORWARD    8000   /* far-ahead target along Snake's facing */
 #define OTS_LOOK_HEIGHT     700    /* aim point above Snake, matches eye for level look */
 
-/* OTS free-look tuning. Shifts match the orbit cam's live values so feel is
- * consistent between modes. Pitch limit ~22° each way; eye/center offsets
- * scale g_ots_pitch into world units via >> 4 in the read sites. */
+/* OTS free-look tuning. Shifts match the orbit cam's live values so feel
+ * is consistent between modes. Pitch limit ~22° each way; the look-at is
+ * computed by rotating the forward vector by g_ots_pitch directly, so the
+ * cam tilts at the same angle the bone IK uses for the gun. */
 #define OTS_YAW_SHIFT     1
 #define OTS_PITCH_SHIFT   2
 #define OTS_PITCH_LIMIT   0x100
-#define OTS_PITCH_EYE_K   3
-#define OTS_PITCH_LOOK_K  8
 
 extern UnkCameraStruct2 gUnkCameraStruct2_800B7868;
 extern short            area_name;
@@ -165,23 +164,33 @@ void FreeCam_Tick(void)
     {
         int sin_h = rsin(GM_PlayerHeading);
         int cos_h = rcos(GM_PlayerHeading);
+        int sin_p = rsin(g_ots_pitch);
+        int cos_p = rcos(g_ots_pitch);
+        int horiz_d;
+        int vert_d;
 
-        /* Eye: lateral right + slight behind, raised. */
+        /* Eye: lateral right + slight behind, raised. Pitch doesn't move
+         * the eye — only rotates the look-at direction around it. */
         eye.vx = GM_PlayerPosition.vx
                + (short)((cos_h * OTS_SHOULDER_DIST) >> 12)
                - (short)((sin_h * OTS_BEHIND_DIST)   >> 12);
         eye.vz = GM_PlayerPosition.vz
                - (short)((sin_h * OTS_SHOULDER_DIST) >> 12)
                - (short)((cos_h * OTS_BEHIND_DIST)   >> 12);
-        eye.vy = GM_PlayerPosition.vy + OTS_EYE_HEIGHT
-               + (short)((g_ots_pitch * OTS_PITCH_EYE_K) >> 4);
+        eye.vy = GM_PlayerPosition.vy + OTS_EYE_HEIGHT;
         eye.pad = 0;
 
-        /* Look-at: far ahead of Snake along his facing. */
-        center.vx = GM_PlayerPosition.vx + (short)((sin_h * OTS_LOOK_FORWARD) >> 12);
-        center.vz = GM_PlayerPosition.vz + (short)((cos_h * OTS_LOOK_FORWARD) >> 12);
-        center.vy = GM_PlayerPosition.vy + OTS_LOOK_HEIGHT
-                  - (short)((g_ots_pitch * OTS_PITCH_LOOK_K) >> 4);
+        /* Look-at: D units ahead of eye, rotated by yaw + pitch. cos_p
+         * shrinks the horizontal projection when pitched; sin_p drives the
+         * vertical. Sign: positive g_ots_pitch (RY-down) tilts the look
+         * vector down (subtract from vy). Matches the bone IK sign so the
+         * cam and gun share one notion of "pitch". */
+        horiz_d = (cos_p * OTS_LOOK_FORWARD) >> 12;
+        vert_d  = (sin_p * OTS_LOOK_FORWARD) >> 12;
+
+        center.vx = eye.vx + (short)((sin_h * horiz_d) >> 12);
+        center.vz = eye.vz + (short)((cos_h * horiz_d) >> 12);
+        center.vy = eye.vy - (short)vert_d;
         center.pad = 0;
 
         /* Eye is behind Snake along his heading; cam-forward = heading.
