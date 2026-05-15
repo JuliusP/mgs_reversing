@@ -6114,7 +6114,11 @@ void sub_80057BF0(SnaInitWork *work, int time)
         break;
     }
 
-    if ( (status & 0x80) == 0 )
+    /* 0x80 is PAD_SQUARE — vanilla used the literal here instead of the
+     * symbol, so this site was missed when remapping aim to L1. Clears
+     * PLAYER_ATTACK after 5 frames of aim-button-not-held, which was
+     * causing aim to loop-restart while L1 is held. */
+    if ( (status & PAD_L1) == 0 )
     {
         if ( (++work->field_926 > 4) || (temp_s3 & 1) )
         {
